@@ -106,6 +106,9 @@ export const validation2 = {
     P.pts = [[S.battery.x0 + .5, .28, .7], [-1.39, .45, .5], [1.48, .45, .5], [2.2, .7, .5], [0, 1.2, .8], [-1.8, .9, .7]].map(p => hardpoint(K, p, COL.green, .04));
     P.daq = K.add(K.holoBox(.6, .4, .4, COL.white, .1, 1)); setP(P.daq, A.at([0, .2, 0], 0, 2.3));
     P.cables = P.pts.map(h => link(K, h.position.toArray(), [P.daq.position.x, .4, P.daq.position.z], COL.green, .2));
+    // 采样波形 + 校准/量程徽章：让"测量范围、校准状态与采样方法"有对象可落（确定性正弦，无 random）
+    P.wave = K.add(K.line(Array.from({length: 33}, (_, i) => [-.3 + i * .01875, .1 * Math.sin(i * .62) + .05 * Math.sin(i * 1.7 + 1.1), 0]), COL.green, .9)); setP(P.wave, [P.daq.position.x, .64, P.daq.position.z]);
+    P.cal = chip(K, 'ruler', COL.white, [P.daq.position.x - .42, .52, P.daq.position.z], .26); P.calOk = chip(K, 'check', COL.green, [P.daq.position.x + .42, .52, P.daq.position.z], .22);
     P.energy = K.add(K.flow([[S.battery.x0, .3, .2], [-.8, .35, .2], [-1.39, .4, 0]], {color: COL.amber, n: 14, size: 6, speed: 1.2}));
     P.tgt = K.add(K.holoBox(1.6, 1.2, 1.5, COL.amber, .1, 1));
     P.box = K.add(K.line([[0, 1.3, .85], [0, 1.3, -.85], [0, -.05, -.85], [0, -.05, .85], [0, 1.3, .85]], COL.green, 1));
@@ -130,6 +133,7 @@ export const validation2 = {
     if (m > 0) { car.set('paint', .25); car.set('ghost', .8); S.show('battery', m); S.show('drive', m * .8); }
     P.pts.forEach((h, i) => op(h, m * stagger(c.p(1, 0, 1, 1), i, 6)));
     op(P.daq, c.show(1, .8, 3, 0)); P.cables.forEach((l, i) => { op(l, c.show(1, 1, 3, 0)); K.drawLine(l, stagger(c.p(1, 1, 1, 'end'), i, 6)); });
+    op(P.wave, c.show(1, 1.2, 3, 0)); op(P.cal, c.show(1, 1.3, 3, 0)); op(P.calOk, c.show(1, 1.5, 3, 0));
     // 3 台架
     const run = c.show(2, 0, 3, 0), ang = (t - c.T(2, 0)) * 9;
     if (run > 0) { car.spin(ang); P.rol.userData.rs.forEach(r => r.rotation.y = -ang * 1.9); S.battery.modules.forEach((mm, i) => mm.userData.top.material.color.set(new THREE.Color().lerpColors(new THREE.Color(COL.teal), new THREE.Color(COL.orange), c.p(2, 1, 2, 'end') * (.4 + .6 * ((i * 7) % 5) / 5)).multiplyScalar(1.4))); }

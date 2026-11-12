@@ -167,3 +167,27 @@
   #experience.is-switching #work-panel,
   #experience.is-switching #shot-strip{opacity:1;transform:none}
 }
+
+/* ===== T-102 hotfix（V 独立验收的 3 条阻塞项）===== */
+
+/* 1) style-v4.css:1 的 body.paused * {animation-play-state:paused!important}
+      会把镜头条按钮的入场动画冻在 from(opacity:0)：
+      暂停中拖进度条跨镜头 → 6 个按钮重建 → 整条消失。
+      用同层 + !important 抢回控制权。 */
+#shot-strip button{animation-play-state:running!important}
+
+/* 2) --phase-progress 原来挂在 .action-phase，其祖先 .action-row 被
+      v5-additions.css 隐藏，等于死变量。改挂到可见的动作条下缘。 */
+#action-overlay{position:relative}
+#action-overlay::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,var(--hud),var(--sub));
+  transform:scaleX(var(--phase-progress,0));transform-origin:left;
+  opacity:.8;pointer-events:none;transition:transform .12s linear;
+}
+
+/* 3) body.playing .lead-card(0,2,1) 压掉新色（播放中描边/悬停全失效）。
+      抬到同权重后置。 */
+body.playing .lead-card{border-left-color:var(--hud);box-shadow:var(--glow)}
+body.playing .lead-card:hover{border-left-color:var(--hud-soft);box-shadow:var(--glow)}
+body.playing .parallel-chip{border-color:var(--hud-dim)}

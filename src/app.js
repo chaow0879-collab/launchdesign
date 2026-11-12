@@ -109,7 +109,7 @@ function selectNode(i,{auto=true}={}){
  $('#prev').disabled=index===0;$('#next').disabled=index===nodes.length-1;
  scene?.setNode(n.id);updateProgress();
  if(auto)start();
- if(switching&&switching.classList.contains('is-switching'))requestAnimationFrame(()=>requestAnimationFrame(()=>switching.classList.remove('is-switching')));
+ if(switching&&switching.classList.contains('is-switching'))setTimeout(()=>switching.classList.remove('is-switching'),280);
 }
 async function start(){
  if(!ready)return;

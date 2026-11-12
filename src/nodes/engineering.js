@@ -157,7 +157,7 @@ export const engineering1 = {
     P.bolts = [[1.6, .45, .55], [.45, .32, .76], [-.6, .32, .76], [-1.6, .45, .55], [.88, .86, .6], [.88, .86, -.6]].map(p => { const b = K.add(K.glow(new THREE.CylinderGeometry(.02, .02, .05, 10), COL.amber, 2.4)); setP(b, p); return b; });
     P.tracks = S.cabin.seats.map((s, i) => K.add(K.line([[s.position.x, 2.2, s.position.z], [s.position.x, s.position.y + .3, s.position.z]], COL.white, .6, true)));
     P.arm = robotArm(K, [.6, 0, 1.7]);
-    P.tq = [['wrench', COL.amber, [1.6, 1.4, 1.2]], ['sound', COL.white, [.4, 1.5, 1.3]], ['cross', COL.red, [.4, 1.5, 1.3]]].map(([ic, col, p]) => chip(K, ic, col, p, ic === 'cross' ? .2 : .3));
+    P.tq = [['wrench', COL.amber, [1.6, 1.4, 1.2]], ['sound', COL.white, [.4, 1.5, 1.3]], ['cross', COL.red, [.04, 1.88, 1.44]]].map(([ic, col, p]) => chip(K, ic, col, p, ic === 'cross' ? .2 : .3));
     P.rings = [[2.25, .55, .6], [.88, .9, .6], [-.05, .7, .9], [-2.2, .7, .6], [1.0, 1.0, .75]].map(p => { const r = K.add(K.ring(.09, COL.green, .008)); setP(r, p); return r; });
     P.ok = chip(K, 'check', COL.green, [0, 1.95, 0], .4);
     return P;
@@ -322,7 +322,8 @@ export const engineering4 = {
     S.battery.g.position.y -= 1.2 * (1 - fly); S.biw.g.position.y += 1.4 * (1 - fly); S.drive.g.position.x += 2 * (1 - fly); S.eea.g.position.z += 2 * (1 - fly); S.cabin.g.position.z -= 2 * (1 - fly);
     P.axes.forEach(a => { op(a, c.show(0, 1.2, 1, .5)); K.growTube(a, c.p(0, 1.2, 0, 1.8)); });
     // 2 网格
-    if (c.after(1, 0)) { car.set('paint', 0); car.set('ghost', 0); car.set('heat', 1); u.uMode.value = 0; u.uLoad.value = .0; car.set('edges', c.show(1, 0, 3, 0) * .9); car.set('points', c.show(1, .5, 2, 0) * .8); }
+    if (c.after(1, 0)) { car.set('paint', 0); car.set('ghost', 0); car.set('heat', 1); u.uMode.value = 0; u.uLoad.value = .0; car.set('edges', c.show(1, 0, 3, 0) * .9); car.set('points', c.show(1, .5, 2, 0)); }
+    car.ptsMat.uniforms.uSize.value = 2.2 + 3.8 * c.show(1, .5, 2, 0);   // 网格点由 2.2 放大到 6，随点云一起收，其余镜头仍是 2.2
     P.fix.forEach(m => op(m, c.show(1, 1, 3, 0)));
     // 3 载荷
     const ld = c.p(2, 0, 2, 1.2);

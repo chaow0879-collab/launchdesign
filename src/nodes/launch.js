@@ -153,6 +153,8 @@ export const launch3 = {
     P.loop = K.add(K.ring(3.2, COL.cyan, .012)); P.loop.rotation.x = -Math.PI / 2; setP(P.loop, [0, .03, 0]);
     P.loopFlow = K.add(K.flow(Array.from({length: 33}, (_, i) => { const a = i / 32 * Math.PI * 2; return [Math.cos(a) * 3.2, .05, Math.sin(a) * 3.2]; }), {color: COL.cyan, n: 30, size: 6, speed: .15}));
     P.goal = chip(K, 'target', COL.green, [0, 2.0, 0], .44);
+    // 需求（P.goal）/ 计划 / 风险 三样各挂一个，第 6 句才不止一个大环
+    P.plan = chip(K, 'clock', COL.cyan, [-1.9, 1.5, 1.15], .36); P.risk = chip(K, 'warn', COL.amber, [1.9, 1.5, 1.15], .36);
     return P;
   },
   update(c, P, K, S, car) {
@@ -166,6 +168,6 @@ export const launch3 = {
     op(P.book, c.show(3, .5, 5, 1));
     op(P.newCar, c.show(4, 0, 5, 1)); op(P.query, c.show(4, .4, 5, 0)); P.query.userData.update(t, 1); op(P.cond, c.show(4, 1, 5, 0));
     op(P.loop, c.show(5, 0)); op(P.loopFlow, c.show(5, 0)); P.loopFlow.userData.update(t, 1);
-    op(P.goal, c.show(5, 1)); car.set('edges', .4 * c.pulse(5, 1, 2.5));
+    op(P.goal, c.show(5, 1)); op(P.plan, c.show(5, 1.2)); op(P.risk, c.show(5, 1.6)); car.set('edges', .4 * c.pulse(5, 1, 2.5));
   }
 };

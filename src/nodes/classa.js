@@ -27,7 +27,9 @@ export const classa1 = {
     P.spotI = chip(K, 'warn', COL.amber, [1.3, 1.35, .7], .28);
     const pts = section(car, 1.3, 40); P.sec = K.add(K.line(pts, COL.white, .9)); P.comb = curvComb(K, pts, COL.amber, .35);
     P.net = ctrlNet(K, car, 11, 5, COL.cyan);
-    P.cont = [['G0', COL.white], ['G1', COL.cyan], ['G2', COL.green]].map(([n, col], i) => { const p = [[.9, .95, .9], [-.05, 1.05, .85], [-1.2, .95, .9]][i]; const r = K.add(K.ring(.12 + i * .03, col, .01)); setP(r, p); r.rotation.y = axes(65).ry; return r; });
+    P.cont = [['G0', COL.white], ['G1', COL.cyan], ['G2', COL.green]].map(([n, col], i) => { const p = [[.9, .95, .9], [-.05, 1.05, .85], [-1.2, .95, .9]][i]; const r = K.add(K.ring(.10 + i * .075, col, .008 + i * .004)); setP(r, p); r.rotation.y = axes(65).ry; return r; });
+    // G0/G1/G2 没有文字贴图可用，用语义图标代替：cross=有台阶、link=接上但不顺、check=顺滑（颜色与各自环一致）
+    P.contTag = [['cross', COL.white], ['link', COL.cyan], ['check', COL.green]].map(([ic, col], i) => { const p = [[.9, .95, .9], [-.05, 1.05, .85], [-1.2, .95, .9]][i]; return chip(K, ic, col, [p[0], p[1] + .13 + i * .07, p[2]], .22); });
     P.fl = featureLines(K, car, COL.cyan);
     P.box = K.add(K.holoBox(4.9, 1.45, 2.0, COL.green, .02, .5)); setP(P.box, [0, .73, 0]);
     P.ok = chip(K, 'check', COL.green, [1.3, 1.35, .7], .28);
@@ -45,7 +47,7 @@ export const classa1 = {
     const nk = c.show(1, .3, 3, .5); op(P.net, nk);
     const pull = c.p(2, 0, 2, 1.2), dots = P.net.userData.dots, cen = dots[47].userData.home;
     dots.forEach(d => { d.position.copy(d.userData.home); const dd = d.userData.home.distanceTo(cen); d.position.y += .06 * Math.sin(pull * Math.PI) * Math.exp(-dd * dd / .2); }); P.net.userData.refresh();
-    P.cont.forEach((r, i) => op(r, c.show(3, 0, 4, 0) * stagger(c.p(3, 0, 3, 1.4), i, 3)));
+    P.cont.forEach((r, i) => { const k = c.show(3, 0, 4, 0) * stagger(c.p(3, 0, 3, 1.4), i, 3); op(r, k); op(P.contTag[i], k); });
     ['shoulder1', 'archF1', 'door01'].forEach((k, i) => op(P.fl[k], c.show(3, .3, 4, 0) * .7));
     op(P.ok, c.show(4, 1.2, 5, 1));
     if (c.after(5, 0)) { car.set('paint', c.p(5, 0, 5, 1.4)); op(P.box, c.show(5, 1)); Object.values(P.fl).forEach(l => op(l, c.show(5, 1) * .35)); }
@@ -139,6 +141,8 @@ export const classa3 = {
     P.fl = featureLines(K, car, COL.green);
     P.axes = [[1, 0, 0, COL.red], [0, 1, 0, COL.green], [0, 0, 1, COL.blue]].map(([x, y, z, col]) => K.add(K.tube([[0, .02, 0], [x * 1.0, .02 + y * 1.0, z * 1.0]], .012, col, {glow: true})));
     P.issues = [[1.0, .95, .85], [-.4, 1.38, .3], [-1.8, .9, .7]].map(p => ({h: hardpoint(K, p, COL.amber, .045), b: chip(K, 'search', COL.amber, [p[0], p[1] + .32, p[2]], .24)}));
+    // 片区状态：3 片已确认（check），2 片还要看（warn），让"命名/修改状态"有对象可落
+    P.zst = [[1.95, .92, .55, 'check', COL.green], [.9, 1.42, 0, 'check', COL.green], [-.9, 1.44, 0, 'warn', COL.amber], [-2.1, .92, .5, 'check', COL.green], [-1.05, .58, .86, 'warn', COL.amber]].map(([x, y, z, ic, col]) => chip(K, ic, col, [x, y, z], .24));
     P.doc = docStack(K, 5, COL.white, .4, .52); setP(P.doc, axes(30).at([0, .02, 0], 3.0, -.4));
     P.stamp = chip(K, 'stamp', COL.green, axes(30).at([0, 1.0, 0], 3.0, -.4), .42);
     P.pkg = chip(K, 'box', COL.cyan, [0, 2.15, 0], .5);
@@ -155,6 +159,7 @@ export const classa3 = {
     const ex = c.p(0, .4, 0, 1.4) * (1 - c.p(2, 0, 2, 1.2));
     car.layers.heat.group.scale.setScalar(1); car.layers.heat.group.position.y = .25 * ex;
     car.set('edges', .4 * zones);
+    P.zst.forEach((b, i) => op(b, zones * stagger(c.p(0, .2, 0, 'end'), i, 5) * c.out(3, 0, .6)));
     P.issues.forEach((s, i) => { const k = c.show(1, 0, 3, 0) * stagger(c.p(1, 0, 1, 1.2), i, 3); op(s.h, k); op(s.b, k); });
     P.axes.forEach(a => { op(a, c.show(2, 0, 3, 1)); K.growTube(a, c.p(2, 0, 2, .7)); });
     const seams = Object.values(P.fl); seams.forEach((l, i) => { op(l, c.show(3, 0, 5, 1) * .9); K.drawLine(l, c.p(3, 0, 3, 1.5)); });

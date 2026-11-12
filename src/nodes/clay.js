@@ -1,5 +1,5 @@
 // 第 4 阶段：实体模型评审
-import {COL, op, clamp, ease, smooth, lerp, mixV, setP, chip, link, floorRing, stagger, axes, dim, hardpoint, section, docStack, gantry, robotArm, lightBars, cad, THREE} from './lib.js';
+import {COL, op, clamp, ease, smooth, lerp, mixV, setP, chip, link, floorRing, stagger, axes, dim, hardpoint, section, docStack, gantry, robotArm, lightBars, cad, curvComb, THREE} from './lib.js';
 
 const CLAY = 0xb07a52;
 function block(K, car) {
@@ -112,6 +112,7 @@ export const clay2 = {
     const tipG = K.glow(new THREE.SphereGeometry(.025, 10, 8), COL.amber, 3); P.tool.add(blade, handle, tipG);
     P.strokes = Array.from({length: 7}, (_, i) => { const z = cz - .21 + i * .07; const pts = []; for (let x = cx - .35; x <= cx + .35; x += .05) pts.push([x, car.heightAt(x, z) + .012, z]); return K.add(K.line(pts, COL.amber, .8)); });
     P.comb = K.add(K.line(section(car, cx).map(p => [p[0] + .002, p[1] + .02, p[2]]), COL.white, .8));
+    P.curv = curvComb(K, section(car, cx).map(p => [p[0], p[1] + .02, p[2]]), COL.amber, .3);
     P.before = K.add(K.line(car.profile.filter(b => b.x > .5 && b.x < 2.3).map(b => [b.x, b.top + .03, .95]), COL.amber, .9));
     P.after = K.add(K.line(car.profile.filter(b => b.x > .5 && b.x < 2.3).map(b => [b.x, b.top + .03 - .03 * Math.exp(-Math.pow((b.x - 1.5) / .3, 2)), .96]), COL.green, .95));
     P.who = [['palette', COL.pink, [.4, 1.6, 1.0]], ['wrench', COL.amber, [2.4, 1.6, 1.0]]].map(([ic, col, p]) => ({b: chip(K, ic, col, p, .36), l: link(K, p, [1.5, 1.0, .9], col, .1)}));
@@ -133,7 +134,7 @@ export const clay2 = {
     let x = cx, z = cz, lift = .6 * (1 - app);
     if (c.between(1, 0, 3, 0)) { const ph = (t - c.T(1, 0)) * 1.8; x = cx + .3 * Math.sin(ph); z = cz + (c.after(2, 0) ? .2 * Math.sin(ph * .23) : 0); lift = .01; }
     op(P.tool, c.show(0, 0, 3, 0)); setP(P.tool, [x, car.heightAt(x, z) + .02 + lift, z]); P.tool.rotation.y = .4;
-    op(P.comb, c.show(1, 1, 2, 1));
+    op(P.comb, c.show(1, 1, 2, 1)); op(P.curv, c.show(1, .7, 2, 1));
     P.strokes.forEach((l, i) => { op(l, c.show(2, 0, 3, .5) * stagger(c.p(2, 0, 2, 'end'), i, 7)); });
     // 4 共同调整
     op(P.before, c.show(3, 0, 4, 0)); op(P.after, c.show(3, .8, 4, 0)); K.drawLine(P.after, c.p(3, .8, 3, 'end'));

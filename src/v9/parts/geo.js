@@ -320,9 +320,88 @@ export function createGeo(THREE) {
     return creaseNormals(new TubeGeometry(curve, total, wire, radial, false), 55);
   }
 
-  // 螺旋弹簧两端并紧圈（更真实：端部有一圈压平的支撑圈）——直接给 spring 加端环
-  function coilEnds(rCoil, wire, y) {
-    return lathe([[wire, -wire], [wire, wire], [-wire, wire], [-wire, -wire]], 12, {angle: 45}); // 占位，不使用
+  // ---------- 曲面钣金件（车门外板/玻璃/翼子板）----------
+  // 用"圆角矩形距离场"把规则网格映射成圆角外形，再沿法向鼓起一块（crown），
+  // 前后两层 + 一圈边料构成有厚度的板，边缘是真实的折边而不是纸片。
+  function curvedPanel(w, h, t, {crownX = .012, crownY = .006, r = .016, segX = 10, segZ = 6} = {}) {
+    const hw = w / 2, hh = h / 2;
+    const rr = Math.min(r, hw * .9, hh * .9);
+    const pos = [], uv = [], idx = [];
+    const mapPoint = (u, v) => {
+      const x0 = u * hw, y0 = v * hh;
+      const qx = clamp(x0, -(hw - rr), hw - rr), qy = clamp(y0, -(hh - rr), hh - rr);
+      let dx = x0 - qx, dy = y0 - qy;
+      const L = Math.hypot(dx, dy);
+      let x = x0, y = y0;
+      if (L > 1e-9) { x = qx + dx / L * rr; y = qy + dy / L * rr; }
+      const z = crownX * (1 - u * u) + crownY * (1 - v * v);
+      return [x, y, z];
+    };
+    // 前表面
+    const front = [], back = [];
+    for (let j = 0; j <= segZ; j++) for (let i = 0; i <= segX; i++) {
+      const u = -1 + 2 * i / segX, v = -1 + 2 * j / segZ;
+      const p = mapPoint(u, v);
+      front.push(p);
+      back.push([p[0], p[1], p[2] - t]);
+    }
+    const nf = front.length;
+    for (const p of front) { pos.push(p[0], p[1], p[2]); uv.push((p[0] / w) + .5, (p[1] / h) + .5); }
+    for (const p of back) { pos.push(p[0], p[1], p[2]); uv.push((p[0] / w) + .5, (p[1] / h) + .5); }
+    const gridIdx = (i, j) => j * (segX + 1) + i;
+    for (let j = 0; j < segZ; j++) for (let i = 0; i < segX; i++) {
+      const a = gridIdx(i, j), b = gridIdx(i + 1, j), c = gridIdx(i, j + 1), d = gridIdx(i + 1, j + 1);
+      // 前表面朝 +z
+      idx.push(a, b, d, a, d, c);
+      // 背面朝 -z
+      idx.push(nf + a, nf + d, nf + b, nf + a, nf + c, nf + d);
+    }
+    // 边料：沿四条边界把前后两层缝起来
+    const rim = (list) => {
+      for (let k = 0; k < list.length - 1; k++) {
+        const a = list[k], b = list[k + 1];
+        idx.push(a, nf + a, nf + b, a, nf + b, b);
+      }
+    };
+    const top = [], bottom = [], left = [], right = [];
+    for (let i = 0; i <= segX; i++) { top.push(gridIdx(i, 0)); bottom.push(gridIdx(i, segZ)); }
+    for (let j = 0; j <= segZ; j++) { left.push(gridIdx(0, j)); right.push(gridIdx(segX, j)); }
+    rim(top); rim(bottom); rim(left); rim(right);
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return creaseNormals(g, 44);
+  }
+
+  // ---------- 焊缝（焊道/胶条）：沿路径的圆角棱条，可有波纹）----------
+  function bead(pts, {radius = .0035, segs = 26, waviness = .12} = {}) {
+    const curve = new CatmullRomCurve3(pts.map(q => q.isVector3 ? q.clone() : new V3(q[0], q[1], q[2])), false, 'centripetal');
+    const total = Math.max(6, segs);
+    const frames = framesFor(curve, total, false);
+    const m = 6;
+    const pos = [], idx = [];
+    for (let i = 0; i <= total; i++) {
+      const t = i / total;
+      const P = frames.ps[i], N = frames.normals[i], B = frames.binormals[i];
+      const s = radius * (1 + waviness * Math.sin(t * 46));
+      for (let j = 0; j < m; j++) {
+        const a = j / m * TAU;
+        const u = Math.cos(a) * s, v = Math.sin(a) * s;
+        pos.push(P.x + N.x * u + B.x * v, P.y + N.y * u + B.y * v, P.z + N.z * u + B.z * v);
+      }
+    }
+    for (let i = 0; i < total; i++) for (let j = 0; j < m; j++) {
+      const j1 = (j + 1) % m;
+      const a = i * m + j, b = (i + 1) * m + j, c = i * m + j1, d = (i + 1) * m + j1;
+      idx.push(a, c, b, b, c, d);
+    }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
   }
 
   // ---------- 线缆 ----------
@@ -442,6 +521,7 @@ export function createGeo(THREE) {
   return {
     clamp, rbox, cbox, flatShade, roundRectPath, extrude, rplate, rplateHoles,
     sweep, SECT, lathe, rcyl, tube, bellows, thread, spring, cable, seam,
+    curvedPanel, bead,
     mergeGeos, creaseNormals, triCount, framesFor
   };
 }

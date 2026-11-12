@@ -209,7 +209,7 @@ export const cas3 = {
     // 2 颜色差异
     const diff = c.show(1, 0, 5, 0);
     const u = car.layers.heat.mat.uniforms;
-    if (diff > 0) { u.uMode.value = 3; u.uLoad.value = diff; u.uCenter.value.set(2.1, .7, 0); u.uRadius.value = .7; }
+    if (diff > 0) { u.uMode.value = 3; u.uLoad.value = diff; u.uCenter.value.set(2.1, .7, 0); u.uRadius.value = c.after(2, 0) ? .7 : 2.2; }
     // 3 对齐
     const mis = c.p(2, 0, 2, .6), align = c.p(2, 1, 2, 'end');
     const h = P.old.userData.home;
