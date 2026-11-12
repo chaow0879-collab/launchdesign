@@ -145,7 +145,7 @@ export async function createCarScene({canvas, modelBuffer, onInteract}) {
     let s = 0; for (let i = 0; i < ctx.sents.length; i++) if (t >= ctx.sents[i].start - .15) s = i;
     ctx.shot = s; ctx.q = clamp((t - ctx.sents[s].start) / Math.max(.5, ctx.sents[s].until - ctx.sents[s].start));
     car.reset(); S.reset(); K.resetProps();
-    core.key.position.set(4, 8, 5); core.key.intensity = 1.7; core.key.color.set(0xffffff); core.setGrid(); core.setStrips(); scene.environmentIntensity = .75;
+    core.key.position.set(4, 8, 5); core.key.intensity = 1.05; core.key.color.set(0xffffff); core.setGrid(); core.setStrips(); scene.environmentIntensity = .28;
     node.update?.(ctx, props, K, S, car);
     // bloom 只在 core.js 定值一次：节点里 validation.js:73 还留着一句 `bloom.strength = .5`（旧基准 .38 时代的"加亮"），
     // 在 1.05 基准下会变成全片唯一一个变暗的镜头，所以节点更新之后再统一回来。

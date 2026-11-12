@@ -19,9 +19,9 @@ export const V = (x, y, z) => new THREE.Vector3(x, y, z);
 // —— 灯箱：顶部一条沿车身纵轴，左前 / 右后各一条斜置（y≈1.8）。
 // meshI 是画面里灯条本身的亮度，envI 是烘进环境贴图的亮度（决定漆面长条反射），lightI 是面光源强度（决定随镜头滑动的长条高光）。
 const STRIPS = [
-  {p: [0, 4.2, 0], s: [8, .06, .12], r: [0, 0, 0], color: 0xeaf6ff, meshI: 2.4, envI: 9, lightI: 2.8},
-  {p: [2.9, 1.8, 2.4], s: [5.6, .05, .1], r: [0, .62, 0], color: 0x9fd8ff, meshI: 2.0, envI: 5.5, lightI: 1.8},
-  {p: [-2.9, 1.8, -2.4], s: [5.6, .05, .1], r: [0, -.62, 0], color: 0x9fd8ff, meshI: 2.0, envI: 5.5, lightI: 1.8}
+  {p: [0, 4.2, 0], s: [8, .06, .12], r: [0, 0, 0], color: 0xeaf6ff, meshI: 1.0, envI: 1.8, lightI: .55},
+  {p: [2.9, 1.8, 2.4], s: [5.6, .05, .1], r: [0, .62, 0], color: 0x9fd8ff, meshI: .85, envI: 1.1, lightI: .35},
+  {p: [-2.9, 1.8, -2.4], s: [5.6, .05, .1], r: [0, -.62, 0], color: 0x9fd8ff, meshI: .85, envI: 1.1, lightI: .35}
 ];
 
 // 暗角：线性 HDR 空间里只能用乘法压边，不能用 examples 的 VignetteShader
@@ -44,7 +44,7 @@ export function createCore(canvas) {
   const renderer = new THREE.WebGLRenderer({canvas, antialias: true, powerPreference: 'high-performance'});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = .92;
+  renderer.toneMappingExposure = .78;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.localClippingEnabled = true;
   const scene = new THREE.Scene();
@@ -77,16 +77,16 @@ export function createCore(canvas) {
   // 这样漆面的长条反射不需要 SSR，也没有每帧重烘 PMREM 的开销。
   const env = pmrem.fromScene(envScene, .02).texture;
   scene.environment = env;
-  scene.environmentIntensity = .75;
+  scene.environmentIntensity = .28;
 
   const camera = new THREE.PerspectiveCamera(32, 1, .05, 120);
   camera.position.set(6, 2.6, 7);
-  const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x0b1218, .35); scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(4, 8, 5); scene.add(key);
-  const rim = new THREE.DirectionalLight(0x7fb4ff, 1.6); rim.position.set(-6, 3, -5); scene.add(rim);
+  const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x0b1218, .16); scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, 1.05); key.position.set(4, 8, 5); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x7fb4ff, .8); rim.position.set(-6, 3, -5); scene.add(rim);
 
   // 地面：深色微反光 + 近车更“湿”（粗糙度按到车心的距离渐变）+ 渐隐网格 + 车下接触阴影
-  const floorMat = new THREE.MeshStandardMaterial({color: 0x0a1017, roughness: .55, metalness: .02, envMapIntensity: 1});
+  const floorMat = new THREE.MeshStandardMaterial({color: 0x060a10, roughness: .74, metalness: 0, envMapIntensity: .22});
   floorMat.onBeforeCompile = shader => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFloorW;')
@@ -97,14 +97,14 @@ export function createCore(canvas) {
         // 近车 1.1~4.6 m 内粗糙度从 .92 压到 .14：只在车周围形成湿反光，远处保持哑光，避免整块镜面地板
         float wet = 1.0 - smoothstep(1.1, 4.6, length(vFloorW.xz));
         float ripple = .07 * sin(vFloorW.x * 2.7) * sin(vFloorW.z * 3.3);
-        roughnessFactor = mix(.92, .14, wet) + ripple * wet;`);
+        roughnessFactor = mix(.94, .40, wet) + ripple * wet;`);
   };
   floorMat.customProgramCacheKey = () => 'floor-wet';
   const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 96), floorMat);
   floor.rotation.x = -Math.PI / 2; scene.add(floor);
   const gridMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: {uColor: {value: new THREE.Color(0x2c6f9c)}, uOpacity: {value: .55}, uGain: {value: 1}},
+    uniforms: {uColor: {value: new THREE.Color(0x1d5478)}, uOpacity: {value: .34}, uGain: {value: 1}},
     vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader: `uniform vec3 uColor; uniform float uOpacity; uniform float uGain; varying vec2 vP;
       float line(float x, float w){ float d = abs(fract(x - .5) - .5); return 1.0 - smoothstep(0.0, w, d / fwidth(x)); }
@@ -123,14 +123,14 @@ export function createCore(canvas) {
   composer.addPass(new RenderPass(scene, camera));
   // 数值与 UI 侧假设同源（U 的 T-102 按 1.05/.55/.72 做视觉），单点来源就是这里：
   // scene.js 每帧只调 core.setBloom()，不再写死强度，所以"UI 有光、车没光"不会发生。
-  const BLOOM = {strength: 1.05, radius: .55, threshold: .72, res: 1024};
+  const BLOOM = {strength: .40, radius: .38, threshold: 1.05, res: 512};
   const bloom = new UnrealBloomPass(new THREE.Vector2(BLOOM.res, BLOOM.res), BLOOM.strength, BLOOM.radius, BLOOM.threshold);
   composer.addPass(bloom);
   const vignette = new ShaderPass(VignetteDarkShader);
-  vignette.uniforms.uStrength.value = .3;
+  vignette.uniforms.uStrength.value = .52;
   composer.addPass(vignette);
   const rgbShift = new ShaderPass(RGBShiftShader);
-  rgbShift.uniforms.amount.value = .0012;
+  rgbShift.uniforms.amount.value = .0007;
   composer.addPass(rgbShift);
   composer.addPass(new OutputPass());
 
