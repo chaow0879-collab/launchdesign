@@ -2,8 +2,17 @@
 import {COL, op, clamp, ease, smooth, lerp, mixV, setP, chip, link, floorRing, stagger, axes, dim, hardpoint, docStack, robotArm, cad, THREE} from './lib.js';
 const ghostCar = (car, k = 1) => { car.set('paint', 1 - k); car.set('ghost', k); };
 const A = axes(32);
-// 落位求解器：沿 pts 走到 pts[i]（=接触面/落点）停住，越过的进度只换算成 ≤push 的让位（不穿透）
-const land = (K, pts, i, opts = {}) => { const curve = K.curve(pts), tgt = new THREE.Vector3(...pts[i]); let best = 1, bd = Infinity; for (let k = 0; k <= 96; k++) { const p = curve.getPointAt(k / 96), d = p.distanceTo(tgt); if (d < bd) { bd = d; best = k / 96; } } return K.stopAt(new THREE.Group(), curve, best, opts); };
+// 落位求解器：沿 pts 走到 pts[i]（=接触面/落点）停住，越过的进度只换算成 ≤push 的让位（不穿透）。
+// travel(k) 的输入被放 10%（k→1.1k），所以落点之后仍有进度可用，"到面即停住"由 stopAt 真正执行。
+const land = (K, pts, i, opts = {}) => {
+  const curve = K.curve(pts), tgt = new THREE.Vector3(...pts[i]);
+  let best = 1, bd = Infinity;
+  for (let k = 0; k <= 240; k++) { const p = curve.getPointAt(k / 240), d = p.distanceTo(tgt); if (d < bd) { bd = d; best = k / 240; } }
+  for (let r = 0; r < 3; r++) { const st = 1 / (240 * 10 ** (r + 1)); for (let j = -5; j <= 5; j++) { const u = Math.max(0, Math.min(1, best + j * st)), d = curve.getPointAt(u).distanceTo(tgt); if (d < bd) { bd = d; best = u; } } }
+  const g = K.stopAt(new THREE.Group(), pts, best, opts), go = g.userData.travel;
+  g.userData.travel = k => go(Math.max(0, Math.min(1, k * 1.1)));
+  return g;
+};
 
 function rollers(K, car) {
   const g = new THREE.Group(); const rs = [];
@@ -36,9 +45,9 @@ export const validation1 = {
     P.jig = K.add(new THREE.Group()); [[1.6, .7], [1.6, -.7], [-1.5, .7], [-1.5, -.7]].forEach(([x, z]) => { const post = K.holoBox(.12, .3, .12, COL.cyan, .2, 1); post.position.set(x, .15, z); P.jig.add(post); });
     P.pins = [[1.6, .7], [1.6, -.7], [-1.5, .7], [-1.5, -.7]].map(([x, z]) => { const p = K.add(K.glow(new THREE.CylinderGeometry(.025, .025, .14, 10), COL.amber, 2.4)); setP(p, [x, .32, z]); return p; });
     // 定位销从孔底升起插进基准孔（插到底 y=.32 由 stopAt 卡住）；车身随后落到工装面；电池/电驱从下方举升到地板接口面
-    P.pinS = land(K, [[0, -.18, 0], [0, -.09, 0], [0, 0, 0], [0, .018, 0]], 2, {push: -.012, axis: 'y'});
-    P.bodyS = land(K, [[0, .22, 0], [0, .12, 0], [0, 0, 0], [0, -.02, 0]], 2, {push: -.015, axis: 'y'});
-    P.liftS = land(K, [[0, -.7, 0], [0, -.4, 0], [0, -.06, 0], [0, 0, 0], [0, .02, 0]], 3, {push: .015, axis: 'y'});
+    P.pinS = land(K, [[0, -.18, 0], [0, -.09, 0], [0, 0, 0], [0, .018, 0]], 2, {push: 0, axis: 'y'});
+    P.bodyS = land(K, [[0, .22, 0], [0, .12, 0], [0, 0, 0], [0, -.02, 0]], 2, {push: 0, axis: 'y'});
+    P.liftS = land(K, [[0, -.7, 0], [0, -.4, 0], [0, -.06, 0], [0, 0, 0], [0, .02, 0]], 3, {push: 0, axis: 'y'});
     P.gShadow = K.add(K.shadowPatch(1.7, .45)); setP(P.gShadow, [0, .012, 0]);
     P.laser = [.7, -.7].map(z => K.add(K.glow(new THREE.BoxGeometry(5, .004, .004), COL.red, 3, .9))).map((l, i) => { setP(l, [0, .35, i ? -.7 : .7]); return l; });
     P.lift = K.add(K.holoBox(2.6, .06, 1.3, COL.amber, .2, 1));
@@ -61,11 +70,11 @@ export const validation1 = {
     S.show('biw', c.show(1, 0) * .9);
     // 定位销先插进基准孔（stopAt 卡在孔底），全部插到底后车身才落座、下沉到工装面
     op(P.jig, c.show(1, 0, 4, 0));
-    let pinIn = 0;
-    P.pins.forEach((p, i) => { const k = stagger(c.p(1, .5, 1, 1.4), i, 4); P.pinS.userData.travel(k); op(p, c.show(1, .5, 4, 0)); setP(p, [p.position.x, .32 + P.pinS.children[0].position.y, p.position.z]); pinIn = Math.max(pinIn, k); });
-    P.bodyS.userData.travel(ease(clamp((pinIn - .82) / .18)));
+    let pinIn = 1;
+    P.pins.forEach((p, i) => { const k = stagger(c.p(1, .5, 1, 1.4), i, 4); P.pinS.userData.travel(k); op(p, c.show(1, .5, 4, 0)); setP(p, [p.position.x, .32 + P.pinS.children[0].position.y, p.position.z]); pinIn = Math.min(pinIn, k); });
+    P.bodyS.userData.travel(ease(clamp((c.p(1, .5, 1, 'end') - .45) / .45)));   // 四销全插到底后车身才落座
     car.root.position.y = (c.after(1, 0) ? 1 : 0) * P.bodyS.children[0].position.y;
-    op(P.gShadow, c.show(1, 0, 4, 0) * (.95 - .55 * clamp(pinIn)));
+    op(P.gShadow, c.show(1, 0, 4, 0) * (.95 - .55 * pinIn));
     P.laser.forEach(l => { op(l, c.show(1, 1.4, 2, .5)); l.scale.x = c.p(1, 1.4, 1, 'end'); });
     // 3 举升
     const lift = c.p(2, 0, 2, 2.2);
@@ -209,8 +218,9 @@ export const validation3 = {
     P.doc = docStack(K, 4, COL.white, .34, .44); setP(P.doc, A.at([0, .02, 0], -2.8, -.6));
     P._z = z0.position.clone();
     // 故障件沿装配反方向（+y）拔出，拔到位由 stopAt 卡住；新件沿同一轴线装入，到装配面停住
-    P.pullS = land(K, [[zp.x, zp.y, zp.z], [zp.x, zp.y + .32, zp.z], [zp.x, zp.y + .62, zp.z]], 2, {push: .02, axis: 'y'});
-    P.seatS = land(K, [[zp.x, zp.y + .6, zp.z], [zp.x, zp.y + .3, zp.z], [zp.x, zp.y + .04, zp.z], [zp.x, zp.y, zp.z], [zp.x, zp.y - .04, zp.z]], 3, {push: -.02, axis: 'y'});
+    const zp = P._z;
+    P.pullS = land(K, [[zp.x, zp.y, zp.z], [zp.x, zp.y + .32, zp.z], [zp.x, zp.y + .62, zp.z], [zp.x, zp.y + .78, zp.z]], 2, {push: 0, axis: 'y'});
+    P.seatS = land(K, [[zp.x, zp.y + .6, zp.z], [zp.x, zp.y + .3, zp.z], [zp.x, zp.y + .04, zp.z], [zp.x, zp.y, zp.z], [zp.x, zp.y - .04, zp.z]], 3, {push: 0, axis: 'y'});
     // 复测表：表盘（带合格区刻线）+ 指针，指针从红区 -70° 扫回合格区 0°
     P.dial = K.add(K.group(K.ring(.24, COL.white, .007), K.line([[0, .05, 0], [0, .2, 0]], COL.green, .9))); setP(P.dial, [1.55, 1.85, .6]); P.dial.rotation.y = A.ry;
     P.needle = K.add(K.glow(new THREE.BoxGeometry(.016, .26, .016), COL.amber, 2.6)); P.needle.geometry.translate(0, .13, 0); setP(P.needle, [1.55, 1.85, .6]); P.needle.rotation.y = A.ry;

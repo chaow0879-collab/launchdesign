@@ -203,9 +203,9 @@ export const cas3 = {
     const P = {};
     P.old = car.makeClone(0x7a8ea3); K.add(P.old); setP(P.old, A0.at([0, 0, 0], 0, -2.6)); P.old.userData.home = P.old.position.toArray();
     P.old.traverse(o => { if (o.material && o.userData.isPaint) { o.material.color.set(0x8193a6); o.material.roughness = .55; o.material.clearcoat = 0; } });
-    // 两版差的是尺寸：旧版车身按 95.5% / 96.5% 摆，车头短 10.6cm、车顶低 5cm；两条尺寸线把这个差值量出来
-    P.dimN = dim(K, [2.36 - .106, .78, .55], [2.36, .78, .55], COL.amber, .05);
-    P.dimR = dim(K, [-.2, car.heightAt(-.2, 0) * .965, 0], [-.2, car.heightAt(-.2, 0), 0], COL.amber, .05);
+    // 两版差的是尺寸：旧版车身按 104.5% / 103.5% 摆（车头长 10.6cm、车顶高 5cm），叠合后差异真的从曲面边界上露出来
+    P.dimN = dim(K, [2.36, .78, .55], [2.4662, .78, .55], COL.amber, .05);
+    P.dimR = dim(K, [-.2, car.heightAt(-.2, 0), 0], [-.2, car.heightAt(-.2, 0) * 1.035, 0], COL.amber, .05);
     P.boxes = [[[2.05, .75, 0], [.6, .5, 1.8], COL.amber], [[-.2, 1.3, 0], [1.6, .25, 1.2], COL.violet]].map(([p, s, col]) => { const b = K.add(K.holoBox(...s, col, .06, .9)); setP(b, p); return b; });
     P.req = chip(K, 'doc', COL.white, [2.6, 1.5, .3], .34); P.reqL = link(K, [2.6, 1.35, .3], [2.2, 1.0, .2], COL.white, .05);
     P.axes = [[1, 0, 0, COL.red], [0, 1, 0, COL.green], [0, 0, 1, COL.blue]].map(([x, y, z, col]) => K.add(K.tube([[0, .02, 0], [x * .9, .02 + y * .9, z * .9]], .012, col, {glow: true})));
@@ -223,7 +223,7 @@ export const cas3 = {
     cad(car, 1);
     // 1 两版分开
     op(P.old, c.show(0, 0, 4, 1.5) * (c.after(2, 0) ? .45 : 1));
-    P.old.scale.set(.955, .965, 1);                                   // 旧版车头短 10.6cm、车顶低 5cm：差异真的错位，不靠颜色
+    P.old.scale.set(1.045, 1.035, 1);                                 // 旧版车头长 10.6cm、车顶高 5cm：差异真的错位/超差，不靠颜色
     P.boxes.forEach((b, i) => op(b, c.show(0, 1, 2, 0) * stagger(c.p(0, 1, 0, 1.6), i, 2) * (1 + .3 * c.pulse(1, i, 1.2))));
     op(P.req, c.show(0, 1.5, 1, 0)); op(P.reqL, c.show(0, 1.5, 1, 0));
     // 2 颜色差异

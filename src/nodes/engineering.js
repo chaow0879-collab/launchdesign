@@ -1,7 +1,16 @@
 // 第 6 阶段：智能电动车工程开发
 import {COL, op, clamp, ease, smooth, lerp, mixV, setP, chip, link, floorRing, wall, stagger, axes, THREE} from './lib.js';
-// 落位求解器：沿 pts 走到 pts[i]（=接触面/落点）停住，越过的进度只换算成 ≤push 的让位（不穿透）
-const land = (K, pts, i, opts = {}) => { const curve = K.curve(pts), tgt = new THREE.Vector3(...pts[i]); let best = 1, bd = Infinity; for (let k = 0; k <= 96; k++) { const p = curve.getPointAt(k / 96), d = p.distanceTo(tgt); if (d < bd) { bd = d; best = k / 96; } } return K.stopAt(new THREE.Group(), curve, best, opts); };
+// 落位求解器：沿 pts 走到 pts[i]（=接触面/落点）停住，越过的进度只换算成 ≤push 的让位（不穿透）。
+// travel(k) 的输入被放 10%（k→1.1k），所以落点之后仍有进度可用，"到面即停住"由 stopAt 真正执行。
+const land = (K, pts, i, opts = {}) => {
+  const curve = K.curve(pts), tgt = new THREE.Vector3(...pts[i]);
+  let best = 1, bd = Infinity;
+  for (let k = 0; k <= 240; k++) { const p = curve.getPointAt(k / 240), d = p.distanceTo(tgt); if (d < bd) { bd = d; best = k / 240; } }
+  for (let r = 0; r < 3; r++) { const st = 1 / (240 * 10 ** (r + 1)); for (let j = -5; j <= 5; j++) { const u = Math.max(0, Math.min(1, best + j * st)), d = curve.getPointAt(u).distanceTo(tgt); if (d < bd) { bd = d; best = u; } } }
+  const g = K.stopAt(new THREE.Group(), pts, best, opts), go = g.userData.travel;
+  g.userData.travel = k => go(Math.max(0, Math.min(1, k * 1.1)));
+  return g;
+};
 
 export const engineering2 = {
   phases: ['电池包成形', '能量通路接通', '电驱与热管理汇合'],
@@ -244,8 +253,8 @@ export const engineering3 = {
     P.plug = K.holoBox(.48, .3, .22, COL.amber, .12, 1); con.add(P.plug);
     P.latch = K.glow(new THREE.BoxGeometry(.2, .03, .06), COL.green, 2.4); con.add(P.latch); P.latch.position.set(0, .2, .08);
     P.con = con;
-    // 插头沿 +z 推入插座：针脚插到底（z=.12 的插合面）被 stopAt 卡住，越过进度只变成 ≤.02 的让位
-    P.seat = land(K, [[0, 0, .62], [0, 0, .34], [0, 0, .12], [0, 0, .075]], 2, {push: .02, axis: 'z'});
+    // 插头沿 +z 推入插座：针脚插到底（z=.12 的插合面）被 stopAt 卡住，越过进度不再前进
+    P.seat = land(K, [[0, 0, .62], [0, 0, .34], [0, 0, .12], [0, 0, .075]], 2, {push: 0, axis: 'z'});
     // 接通信号：只插到底才开始流（先断后通），沿插合面从针脚流进插座
     P.seatSig = K.flow([[0, .06, .02], [0, .06, .1], [0, -.06, .1], [0, -.06, .02]], {color: COL.green, n: 8, size: 7, speed: 1.6}); con.add(P.seatSig);
     P.clips = E.trunk.filter((_, i) => i % 2 === 0).map(p => { const cl = K.add(K.holoBox(.06, .04, .06, COL.white, .3, 1)); setP(cl, [p[0], p[1] + .02, p[2]]); return cl; });
@@ -282,13 +291,13 @@ export const engineering3 = {
     S.sub(E.loom, c.after(2, 0) ? 1 : 0); S.sub(E.screen, c.after(3, 1) ? 1 : 0);
     E.branches.forEach((b, i) => S.sub(b.t, c.after(2, 0) ? 1 : 0)); E.sig.forEach(f => S.sub(f, c.after(2, .5) ? 1 : 0)); S.sub(E.trunkSig, c.after(2, .3) ? 1 : 0);
     Object.values(E.fans).forEach(f => S.sub(f, c.show(3, 0, 4, 0)));
-    // 2 连接器
+    // 2 连接器：插头沿 +z 推入，针脚插到底（插合面 z=.12）停住；到底前电路是断的，到底后才通（先断后通）
     const cs = c.show(1, 0, 2, 0); op(P.con, cs);
-    const push = c.p(1, 1, 1, 'end'), seat = P.seat.userData.travel(push);
-    P.plug.position.copy(P.seat.children[0].position);               // 针脚随路径插到底，停住
-    const on = seat.contact ? 1 : 0;                                  // 到底才接通：先断后通
+    const push = c.p(1, .9, 1, 1.55), seat = P.seat.userData.travel(push);   // 15.0s 插到底，留 2 秒多给"接通"
+    P.plug.position.copy(P.seat.children[0].position);
+    const on = seat.contact ? 1 : 0;
     P.pins.forEach((p, i) => op(p, cs * stagger(c.p(1, 0, 1, 1), i, 12) * (.55 + .45 * on)));
-    op(P.latch, c.after(1, 1.8) ? 1 : 0); P.latch.position.y = .2 + .03 * (1 - on);
+    op(P.latch, c.in(1, 1.4, .25)); P.latch.position.y = .2 + .03 * (1 - on);   // 插到底的同一刻锁止片压下
     op(P.seatSig, cs * on); if (on) P.seatSig.userData.update(t, 1);
     // 3 线束
     K.growTube(E.loom, c.p(2, 0, 2, 1)); E.branches.forEach((b, i) => K.growTube(b.t, stagger(c.p(2, .5, 2, 1.6), i, E.branches.length)));
@@ -341,10 +350,10 @@ export const engineering4 = {
     P.rib = K.add(K.tube([[2.2, .5, .5], [1.6, .48, .62], [1.1, .34, .74]], .03, COL.green, {glow: true}));
     P.cmp = [['chip', COL.cyan, [2.2, 1.9, -.4]], ['search', COL.amber, [3.3, 1.9, -.4]]].map(([ic, col, p]) => chip(K, ic, col, p, .36));
     P.cmpL = link(K, [2.2, 1.9, -.4], [3.3, 1.9, -.4], COL.white, .2);
-    // 数字合车：五个专业组各沿自身装配方向进入同一坐标系，终点=接口面，越过进度只换算成 ≤.02 的压紧
+    // 数字合车：五个专业组各沿自身装配方向进入同一坐标系，终点=接口面，越过进度只换算成往外的让位
     P.dock = (() => {
       const mk = (dx, dy, dz, push, axis) => land(K, [[dx, dy, dz], [dx * .55, dy * .55, dz * .55], [dx * .16, dy * .16, dz * .16], [0, 0, 0], [-dx * .05, -dy * .05, -dz * .05]], 3, {push, axis});
-      return {battery: mk(0, -1.2, 0, .02, 'y'), biw: mk(0, 1.4, 0, -.02, 'y'), drive: mk(2, 0, 0, -.02, 'x'), eea: mk(0, 0, 2, -.02, 'z'), cabin: mk(0, 0, -2, .02, 'z')};
+      return {battery: mk(0, -1.2, 0, 0, 'y'), biw: mk(0, 1.4, 0, 0, 'y'), drive: mk(2, 0, 0, 0, 'x'), eea: mk(0, 0, 2, 0, 'z'), cabin: mk(0, 0, -2, 0, 'z')};
     })();
     return P;
   },
@@ -364,8 +373,8 @@ export const engineering4 = {
     const ld = c.p(2, 0, 2, 1.2);
     op(P.force, c.show(2, 0, 3, 0)); op(P.forceL, c.show(2, 0, 3, 0)); setP(P.force, [lerp(3.2, 2.55, ld), .55, 0]);
     if (c.after(2, 0) && !c.after(3, 0)) {
-      const skin = c.p(2, 0, 2, .62) < 1 ? 1 : 0;                    // 前段看漆面鼓包，后段看云图，避免两层共面闪烁
-      u.uLoad.value = ld; u.uCenter.value.set(2.2, .55, 0); u.uRadius.value = 1.4; u.uDeform.value = 3 * c.p(2, .25, 2, 'end');
+      const skin = c.p(2, 1.55, 2, 1.75) < 1 ? 1 : 0;                 // 前段看漆面鼓包（约 3.5s），后段看云图，避免两层共面闪烁
+      u.uLoad.value = ld; u.uCenter.value.set(2.2, .55, 0); u.uRadius.value = 1.4; u.uDeform.value = 3 * c.p(2, .35, 2, 'end');
       car.setDeformScale(.12); car.setDeformFollow(true); car.set('paint', skin); car.set('heat', 1 - skin);
     } else { car.setDeformFollow(false); car.setDeformScale(.08); }
     // 4 气动 热流 振型
@@ -412,8 +421,8 @@ export const engineering5 = {
     P.ver = K.add(K.ring(.5, COL.green, .014)); setP(P.ver, P.pkg.position.toArray()); P.ver.rotation.y = A.ry;
     P.datum = [[2.3, .5, 0], [-2.3, .55, 0], [0, .1, .9]].map(p => Object.assign(hardpoint(K, p, COL.amber, .06), {userData: {home: p}}));
     // 基准点从上方落到车表（落点=基准面，stopAt 卡住）；版本环扣到控制器顶面（y+.08）；数据包/图钉落到基线台面
-    P.datumSeed = land(K, [[0, .3, 0], [0, .16, 0], [0, 0, 0], [0, -.02, 0]], 2, {push: -.015, axis: 'y'});
-    P.ringSeed = land(K, [[0, .3, 0], [0, .14, 0], [0, 0, 0], [0, -.018, 0]], 2, {push: -.01, axis: 'y'});
+    P.datumSeed = land(K, [[0, .3, 0], [0, .16, 0], [0, 0, 0], [0, -.02, 0]], 2, {push: 0, axis: 'y'});
+    P.ringSeed = land(K, [[0, .3, 0], [0, .14, 0], [0, 0, 0], [0, -.018, 0]], 2, {push: 0, axis: 'y'});
     const bb = car.bbox; P.dims = [dim(K, [bb.min.x, .05, 1.2], [bb.max.x, .05, 1.2]), dim(K, [car.wheelCenters[2].x, .05, 1.4], [car.wheelCenters[0].x, .05, 1.4], COL.amber)];
     P.tol = K.add(new THREE.Mesh(new THREE.TubeGeometry(K.curve(car.profile.filter((b, i) => i % 3 === 0).map(b => [b.x, b.top, .95])), 80, .03, 6), new THREE.MeshBasicMaterial({color: new THREE.Color(COL.green).multiplyScalar(1.4), transparent: true, opacity: .3, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending})));
     const items = [[S.battery.x0, .3, 0], [car.wheelCenters[2].x, .35, 0], [.08, .55, .37], [.35, .5, 0], [1.75, .6, .4]];
@@ -424,9 +433,9 @@ export const engineering5 = {
     P.list = [0, 1, 2, 3, 4].map(i => { const p = A.at([0, 2.3 - i * .36, 0], -3.2, -.6); return {row: (() => { const r = K.add(K.holoBox(1.4, .22, .04, COL.white, .12, .9)); setP(r, p); r.rotation.y = A.ry; return r; })(), ok: chip(K, i === 3 ? 'user' : 'check', i === 3 ? COL.amber : COL.green, A.at(p, .9), .22)}; });
     P.bay = K.add(new THREE.Group()); P.bayRing = K.add(K.group(K.ring(.8, COL.amber, .012))); P.bayRing.children[0].rotation.x = -Math.PI / 2; setP(P.bayRing, [-4.2, .02, -1.6]);
     // 交接落位：数据包与图钉沿竖直路径落到基线台面（y=.34 / .12），落点由 stopAt 卡住，落定后压 .05
-    P.land = land(K, [P.pkg.position.toArray(), [-4.2, 1.5, -1.6], [-4.2, .95, -1.6], [-4.2, .34, -1.6], [-4.2, .26, -1.6]], 3, {push: -.02, axis: 'y'});
+    P.land = land(K, [P.pkg.position.toArray(), [-4.2, 1.5, -1.6], [-4.2, .34, -1.6], [-4.2, -.6, -1.6]], 2, {push: 0, axis: 'y'});
     P.pin = K.add(K.glow(new THREE.ConeGeometry(.03, .18, 10), COL.amber, 2.8)); P.pin.rotation.x = Math.PI; setP(P.pin, [-4.2, 1.15, -1.6]);
-    P.pinLand = land(K, [[-4.2, 1.15, -1.6], [-4.2, .7, -1.6], [-4.2, .12, -1.6], [-4.2, .07, -1.6]], 2, {push: -.02, axis: 'y'});
+    P.pinLand = land(K, [[-4.2, 1.15, -1.6], [-4.2, .7, -1.6], [-4.2, .12, -1.6], [-4.2, .07, -1.6]], 2, {push: 0, axis: 'y'});
     P.bayShadow = K.add(K.shadowPatch(.7, .5)); setP(P.bayShadow, [-4.2, .012, -1.6]);
     P.trace = link(K, [-4.2, .3, -1.6], [-1.2, .8, 0], COL.amber, .6, true);
     return P;

@@ -53,6 +53,19 @@ export const concept1 = {
     P.doc = docStack(K, 4, COL.amber, .34, .44); setP(P.doc, axes(30).at([0, .02, 0], 3.1, -.6));
     P.docLinks = P.flags.map(f => link(K, [f.p[0], f.p[1] + .35, f.p[2]], P.doc.position.toArray().map((v, i) => i === 1 ? .3 : v), COL.amber, .3, true));
     P.ok = chip(K, 'check', COL.green, [0, 2.0, 0], .4);
+    // 笔与纸：笔尖贴在草图平面上，线从笔尖长出来；纸面给一层极淡的底，笔尖处留接触点
+    P.paper = K.add(K.panel(5.6, 2.1, COL.cyan, .04)); setP(P.paper, [0, .86, -.006]);
+    P.pen = K.add(new THREE.Group());
+    P.pen.add(K.solid(new THREE.CylinderGeometry(.02, .014, .46, 12), 0xe4eef7, {tier: 'metal', edge: .5}));
+    P.pen.add(K.glow(new THREE.ConeGeometry(.011, .07, 10), PINK, 2.8));
+    P.pen.children[0].position.y = .30; P.pen.children[1].position.y = .035; P.pen.children[1].rotation.z = Math.PI;
+    P.penSh = K.add(K.disc(.1, PINK, .3)); setP(P.penSh, [0, 0, -.004]);
+    // 乘员落座 / 色板落槽 / 问题旗标扎到车身面上的求解器（不进场景）
+    P.pal = K.add(K.holoBox(2.45, .03, .86, COL.white, .08, .8)); setP(P.pal, axes(35).at([0, 1.88, 0], 0, -.6)); P.pal.rotation.y = axes(35).ry;
+    P.seatSol = [S.occupant.front, S.occupant.front2, S.occupant.rear].map(o => K.stopAt(new THREE.Group(), [[o.position.x, o.position.y + .34, o.position.z], o.position.toArray()], 1));
+    P.swSol = P.sw.map(s => K.stopAt(new THREE.Group(), [[s.position.x, s.position.y + .5, s.position.z], [s.position.x, s.position.y + .12, s.position.z], s.position.toArray()], 1));
+    P.flagSol = P.flags.map(f => K.stopAt(new THREE.Group(), [[f.p[0], f.p[1] + 1.15, f.p[2]], [f.p[0], f.p[1] + .62, f.p[2]], [f.p[0], f.p[1] + .35, f.p[2]]], 1));
+    P.extZ = [-.9, -.45, .45, .9];
     return P;
   },
   update(c, P, K, S, car) {
@@ -60,22 +73,42 @@ export const concept1 = {
     // 1 落笔
     const vis1 = c.out(3, 1.2, 1.2);
     car.set('paint', 0); car.set('wheels', 0);
+    op(P.paper, c.show(0, 0, 3, .5) * .8);
     op(sk.base, c.in(0, 0) * vis1); K.drawLine(sk.base, c.p(0, 0, 0, .6));
     op(sk.wf, c.in(0, .3) * vis1); K.drawLine(sk.wf, c.p(0, .3, 0, .9)); op(sk.wr, c.in(0, .5) * vis1); K.drawLine(sk.wr, c.p(0, .5, 0, 1));
     op(sk.top, c.in(0, 1) * vis1); K.drawLine(sk.top, c.p(0, 1, 0, 1.55));
     op(sk.win, c.in(0, 1.4) * vis1); K.drawLine(sk.win, c.p(0, 1.4, 0, 1.8));
     op(sk.shoulder, c.in(0, 1.7) * vis1); K.drawLine(sk.shoulder, c.p(0, 1.7, 0, 'end'));
+    // 笔尖跟着当前笔触的末端走：线从笔尖长出来，笔一抬就是"落笔间隙"
+    const stk = [[sk.base, c.p(0, 0, 0, .6)], [sk.wf, c.p(0, .3, 0, .9)], [sk.wr, c.p(0, .5, 0, 1)], [sk.top, c.p(0, 1, 0, 1.55)], [sk.win, c.p(0, 1.4, 0, 1.8)], [sk.shoulder, c.p(0, 1.7, 0, 'end')]];
+    const live = stk.filter(([, k]) => k > 0);
+    const act = live.length ? live[live.length - 1] : stk[0];
+    const gp = act[0].geometry.attributes.position, gi = Math.max(0, Math.min(gp.count - 1, Math.floor((gp.count - 1) * act[1])));
+    const penOn = act[1] > 0 && act[1] < .995 ? 1 : 0;
+    op(P.pen, penOn * c.show(0, .05, 1, 0, .5)); setP(P.pen, [gp.getX(gi), gp.getY(gi) + .002, gp.getZ(gi) + .02]); P.pen.rotation.z = -.42;
+    op(P.penSh, penOn * .9); setP(P.penSh, [gp.getX(gi), gp.getY(gi), gp.getZ(gi) - .004]);
     // 2 推演
     P.alt.forEach((l, i) => { const k = stagger(c.p(1, 0, 1, 2), i, 3); op(l, c.show(1, 0, 2, 0) * (k > 0 ? .35 + .65 * Math.max(0, 1 - Math.abs(c.lin(1, 0, 1, 2) * 3 - i - .5)) : 0)); K.drawLine(l, k); });
+    // 2 推演：同一支笔把三条车顶走势依次描出来（尖端在纸面上，走势从尖端生长）
+    if (c.after(1, 0)) {
+      let alt = null;
+      P.alt.forEach((l, i) => { const k = stagger(c.p(1, 0, 1, 2), i, 3); if (k > 0 && k < .99 && (!alt || k < alt[1])) alt = [l, k]; });
+      op(P.pen, c.show(1, 0, 1, 1.9) * (alt ? .95 : 0)); op(P.penSh, c.show(1, 0, 1, 1.9) * (alt ? .9 : 0));
+      if (alt) { const ap = alt[0].geometry.attributes.position, ai = Math.max(0, Math.min(ap.count - 1, Math.floor((ap.count - 1) * alt[1]))); setP(P.pen, [ap.getX(ai), ap.getY(ai), ap.getZ(ai) + .02]); setP(P.penSh, [ap.getX(ai), ap.getY(ai), ap.getZ(ai) - .004]); }
+    }
     op(P.pos, c.show(1, 2, 2, 0)); P.posLinks.forEach((l, i) => { op(l, c.show(1, 2.2, 2, 0)); K.drawLine(l, c.p(1, 2.2, 1, 'end')); });
     // 3 比例
     P.dims.forEach((d, i) => op(d, stagger(c.p(2, 0, 2, .8), i, 3) * c.out(3, .5)));
     op(P.cabinBox, c.show(2, .5, 3, .5)); K.drawLine(P.cabinBox, c.p(2, .5, 2, 1));
     const fit = c.show(2, 1, 3, .5);
     S.show('occupant', fit * .9); S.show('battery', fit * .8); S.show('drive', fit * .6);
+    [S.occupant.front, S.occupant.front2, S.occupant.rear].forEach((o, i) => {   // 乘员落到座椅面上就停
+      P.seatSol[i].userData.travel(stagger(c.p(2, 1, 2, 1.6), i, 3)); o.position.copy(P.seatSol[i].children[0].position); S.sub(o, fit * .9);
+    });
     // 4 立体化
     const ex = c.p(3, 0, 3, 1);
-    P.ext.forEach((s, i) => Object.values(s).forEach(l => { op(l, c.show(3, 0, 4, .3) * stagger(ex, i, 4) * .7); K.drawLine(l, 1); }));
+    P.ext.forEach((s, i) => { const k = stagger(ex, i, 4);   // 二维线从中心拉出宽度：到 ±0.9 m 车宽边界就停
+      Object.values(s).forEach(l => { op(l, c.show(3, 0, 4, .3) * k * .8); K.drawLine(l, Math.min(1, k * 1.4)); l.position.z = -P.extZ[i] * (1 - k); }); });
     P.cross.forEach((l, i) => { op(l, c.show(3, .5, 4, .3) * .8); K.drawLine(l, stagger(c.p(3, .5, 3, 1.5), i, 4)); });
     const vol = c.p(3, 1, 3, 2.4);
     if (c.after(3, 0)) { car.set('clay', vol * c.out(4, 0, 1.2)); car.set('edges', c.show(3, .6, 4, .3) * .6); car.edgeMat.uniforms.uReveal.value = lerp(-2.5, 2.5, c.p(3, .6, 3, 1.4)); car.set('wheels', vol); }
@@ -87,7 +120,11 @@ export const concept1 = {
       const a = P.sw[i0].userData, b = P.sw[i1].userData;
       car.paint.color.setHex(a.col).lerp(new THREE.Color(b.col), f); car.paint.roughness = lerp(a.r, b.r, f); car.paint.metalness = lerp(a.m, b.m, f);
     }
-    P.sw.forEach((s, i) => { op(s, c.show(4, 0, 5, 1) * stagger(c.p(4, 0, 4, .6), i, 4)); });
+    P.sw.forEach((s, i) => {
+      const k = stagger(c.p(4, 0, 4, .6), i, 4), r = P.swSol[i].userData.travel(k * 1.06);
+      op(s, c.show(4, 0, 5, 1) * k); s.position.copy(P.swSol[i].children[0].position); s.scale.setScalar(1 - .07 * r.over);   // 色板落到台面槽位
+    });
+    op(P.pal, c.show(4, 0, 5, 1) * .85);
     op(P.sel, c.show(4, .3, 5, 1)); setP(P.sel, P.sw[Math.round(Math.min(3, phase))].position.toArray()); P.sel.rotation.y = axes(35).ry;
     const lt = c.lin(4, 1, 4, 'end');
     if (c.after(4, 1)) { const a = lerp(.6, 3.6, lt); core(K).key.position.set(Math.cos(a) * 7, 5.5, Math.sin(a) * 7); core(K).key.intensity = 2.4; }
@@ -95,7 +132,10 @@ export const concept1 = {
     if (c.after(5, 0)) { const last = P.sw[1].userData; car.paint.color.setHex(last.col); car.paint.roughness = last.r; car.paint.metalness = last.m; car.set('paint', 1); car.set('wheels', 1); }
     // 6 确认方向
     op(P.ok, c.show(5, 0, 5, 1.2));
-    P.flags.forEach((fl, i) => { const k = stagger(c.p(5, 1, 5, 2), i, 3); op(fl.h, k); op(fl.b, k); });
+    P.flags.forEach((fl, i) => {
+      const k = stagger(c.p(5, 1, 5, 2), i, 3), r = P.flagSol[i].userData.travel(k * 1.06);
+      op(fl.h, k); op(fl.b, k); fl.b.position.copy(P.flagSol[i].children[0].position); fl.b.scale.setScalar(.28 * (1 - .1 * r.over));   // 旗标扎到车身面上的硬点
+    });
     op(P.doc, c.show(5, 1.8)); P.docLinks.forEach((l, i) => { op(l, c.show(5, 2)); K.drawLine(l, stagger(c.p(5, 2, 5, 'end'), i, 3)); });
   }
 };
@@ -237,36 +277,58 @@ export const concept3 = {
     P.trail = [[2.1, .75, .55], [-.2, 1.45, 0]].map(p => ({h: hardpoint(K, p, COL.amber, .05), f: chip(K, 'flag', COL.amber, [p[0], p[1] + .32, p[2]], .26), p}));
     P.cas = chip(K, 'chip', COL.cyan, [3.4, 1.5, -.5], .44);
     P.casLink = link(K, [1.8, 1.0, 0], [3.4, 1.35, -.5], COL.cyan, .2);
+    // 落位求解器（不进场景）：方案滑进基准线、低趴轮廓压到头顶、电池滑进车身、车顶微调抬到间隙、问题旗标跟到建模节点
+    P.varSol = P.vars.map(v => K.stopAt(new THREE.Group(), [[v.userData.home[0] * 1.62, 0, v.userData.home[2] * 1.62], [v.userData.home[0] * 1.24, 0, v.userData.home[2] * 1.24], v.userData.home], 1));
+    P.lowSol = K.stopAt(new THREE.Group(), [[0, 0, 0], [0, -.14, 0]], .92, {push: .012, axis: 'y'});
+    P.batSol = K.stopAt(new THREE.Group(), [[0, 0, 1.9], [0, 0, .9], [0, 0, 0]], 1);
+    P.roofSol = K.stopAt(new THREE.Group(), [[0, 0, 0], [0, .22, 0]], .8);
+    P.trailSol = P.trail.map(tr => K.stopAt(new THREE.Group(), [[tr.p[0], tr.p[1] + .32, tr.p[2]], [(tr.p[0] + 3.3) / 2, Math.max(tr.p[1], 1.45) + .5, .4], [3.3, 1.42, -.46]], .92));
+    P.roofAl = [-3, 0, 3].map((al, i) => { const o = A3.at([0, 0, 0], al, -.6); return [-o[0], 0, [-.55, 0, .55][i]]; });
     return P;
   },
   update(c, P, K, S, car) {
     const t = c.t;
     car.paint.color.setHex(0xcfd6dd);
     // 1 并列
-    P.vars.forEach((v, i) => op(v, c.show(0, 0, 2, .8) * stagger(c.p(0, 0, 0, 1), i, 2)));
+    P.vars.forEach((v, i) => {
+      const k = stagger(c.p(0, 0, 0, 1), i, 2);
+      op(v, c.show(0, 0, 2, .8) * k);
+      if (!c.after(1, 0)) { P.varSol[i].userData.travel(k); v.position.copy(P.varSol[i].children[0].position); }   // 方案从两侧滑进基准线就停
+    });
     op(P.base, c.show(0, 0, 2, .8));
     op(P.goal, c.show(0, 1, 2, 0)); P.goalLinks.forEach((l, i) => { op(l, c.show(0, 1.2, 2, 0)); K.drawLine(l, stagger(c.p(0, 1.2, 0, 'end'), i, 3)); });
     // 2 差异
-    P.roofs.forEach((l, i) => { op(l, c.show(1, 0, 2, .5)); K.drawLine(l, stagger(c.p(1, 0, 1, 1), i, 3)); });
+    P.roofs.forEach((l, i) => {
+      const k = stagger(c.p(1, 0, 1, 1), i, 3);
+      op(l, c.show(1, 0, 2, .5)); K.drawLine(l, k);
+      l.position.set(P.roofAl[i][0] * k, .42 * k, P.roofAl[i][2] * k);   // 车顶走势从车上分离出来、对齐成一排对比
+    });
     P.judge.forEach((j, i) => op(j, c.show(1, 1, 2, 0) * stagger(c.p(1, 1, 1, 'end'), i, 2)));
     // 3 叠合
     P.vars.forEach((v, i) => { const k = c.p(2, 0, 2, .8); const h = v.userData.home; setP(v, mixV(h, [0, 0, 0], k)); });
     op(P.low, c.show(2, .4, 4, 1)); K.drawLine(P.low, c.p(2, .4, 2, 1));
+    P.lowSol.userData.travel(c.p(2, .7, 2, 1.7)); P.low.position.copy(P.lowSol.children[0].position);   // 低趴轮廓压下来，到乘员头顶就停
     P.hps.forEach((h, i) => op(h, c.show(2, .2, 4, 0) * stagger(c.p(2, .2, 2, .9), i, 5)));
     S.show('occupant', c.show(2, .6, 5, 0) * .85); S.sub(S.occupant.front2, 0); S.sub(S.occupant.rear, 0);
     op(P.head, c.show(2, 1, 4, 1) * (.6 + .4 * Math.sin(t * 7))); op(P.clash, c.show(2, 1.2, 4, 1));
     if (c.after(2, 0)) { car.set('paint', .2); car.set('ghost', .9); }
     // 4 内部包络
     S.show('battery', c.show(3, 0, 5, 1) * .9); S.show('drive', c.show(3, .5, 5, 1) * .8); S.show('cabin', c.show(3, .3, 5, 1) * .5); S.show('eea', c.show(3, 1, 5, 0) * .4);
+    P.batSol.userData.travel(c.p(3, 0, 3, 1.2)); S.battery.g.position.copy(P.batSol.children[0].position);   // 电池从车尾滑进地板下就停
     op(P.conf, c.show(3, 1, 4, 1.5) * (.5 + .5 * Math.sin(t * 6)));
     // 5 联合评审
     P.sides.forEach((s, i) => { const k = stagger(c.p(4, 0, 4, .8), i, 2) * c.out(5, .5); op(s.b, k); op(s.l, k); K.drawLine(s.l, k); });
     const fix = c.p(4, .8, 4, 1.4); op(P.newRoof, c.show(4, .8, 5, .5)); K.drawLine(P.newRoof, fix);
-    if (c.after(4, 1.2)) { P.head.material.color.set(new THREE.Color(COL.green).multiplyScalar(2.4)); P.conf.material.color.set(new THREE.Color(COL.green).multiplyScalar(2)); } else { P.head.material.color.set(new THREE.Color(COL.red).multiplyScalar(2.4)); P.conf.material.color.set(new THREE.Color(COL.red).multiplyScalar(2)); }
+    const roofR = P.roofSol.userData.travel(fix);   // 车顶微调把低趴线抬到间隙以上：抬到位才转绿
+    P.low.position.set(0, P.lowSol.children[0].position.y + P.roofSol.children[0].position.y, 0);
+    if (roofR.contact) { P.head.material.color.set(new THREE.Color(COL.green).multiplyScalar(2.4)); P.conf.material.color.set(new THREE.Color(COL.green).multiplyScalar(2)); } else { P.head.material.color.set(new THREE.Color(COL.red).multiplyScalar(2.4)); P.conf.material.color.set(new THREE.Color(COL.red).multiplyScalar(2)); }
     P.rec.forEach((r, i) => op(r, c.show(4, 1 + i, 5, .5)));
     // 6 向下传
     if (c.after(5, 0)) { const k = c.p(5, 0, 5, 1); car.set('paint', 1 - k * .8); car.set('ghost', k * .5); car.set('edges', k); car.edgeMat.uniforms.uReveal.value = 3; }
     op(P.cas, c.show(5, .5)); op(P.casLink, c.show(5, .6)); K.drawLine(P.casLink, c.p(5, .6, 5, 1.2));
-    P.trail.forEach((tr, i) => { const k = c.show(5, 1.2); op(tr.h, k); op(tr.f, k); tr.f.position.y += .05 * Math.sin(t * 3 + i); });
+    P.trail.forEach((tr, i) => {
+      const k = c.show(5, 1.2); op(tr.h, k); op(tr.f, k);
+      P.trailSol[i].userData.travel(stagger(c.p(5, 1.2, 5, 'end'), i, 2)); tr.f.position.copy(P.trailSol[i].children[0].position);   // 未关闭的问题旗标跟到建模节点
+    });
   }
 };

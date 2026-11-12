@@ -164,7 +164,7 @@ export const clay2 = {
     // 工具运动：刀刃沿刮削路线推进，刀口两端各采一次车面高度 → 刀身跟着切向摆，刃口与曲面间隙恒定
     const app = c.p(0, 0, 0, 1.2), bladeK = c.lin(1, 0, 2, 'end');
     let x = cx, z = cz, lift = .6 * (1 - app);
-    if (c.between(1, 0, 3, 0)) { const bp = P.burnPts[Math.min(P.burnPts.length - 1, Math.floor(bladeK * P.burnPts.length))]; x = bp[0]; z = bp[2]; lift = 0; }
+    if (c.between(1, 0, 3, 0)) { const bp = P.burn.userData.curve.getPointAt(bladeK); x = bp.x; z = bp.z; lift = 0; }   // 刀位与亮带同一条弧长参数
     const e0 = car.heightAt(x - .08, z), e1 = car.heightAt(x + .08, z), tilt = Math.atan2(e1 - e0, .16);
     op(P.tool, c.show(0, 0, 3, 0)); setP(P.tool, [x, (e0 + e1) / 2 + .014 + lift, z]); P.tool.rotation.set(0, .4, tilt);
     op(P.burn, c.show(1, .2, 3, .3)); K.growTube(P.burn, bladeK);        // 刮过的区域跟着刀刃亮起来

@@ -65,6 +65,18 @@ export const demand1 = {
     P.teams = [['palette', COL.pink, -3.0], ['gear', COL.blue, 0], ['check', COL.green, 3.0]].map(([ic, c, along]) => { const p = A5.at([0, 0, 0], along * 1.1, along === 0 ? -3.6 : -1.4); return {ring: floorRing(K, .5, c, p), icon: chip(K, ic, c, [p[0], 1.3, p[2]], .5), p, c}; });
     P.teamLinks = P.teams.map(tm => link(K, [tm.p[0], 1.35, tm.p[2]], P.mx.position.toArray(), tm.c, .5));
     P.teamToCar = P.teams.map(tm => link(K, [tm.p[0], .55, tm.p[2]], [tm.p[0] * .25, .9, tm.p[2] * .25], tm.c, .05));
+    // 落位求解器（只做运动学、不进场景）：光圈图标、插头、目标环、约束墙、三方接入各自沿路径进给，
+    // 到接触点就停住，越界只换算成让位/压紧，保证不穿透
+    P.scenSol = P.scen.map(s => K.stopAt(new THREE.Group(), [[s.p[0], 1.62, s.p[2]], [s.p[0], 1.02, s.p[2]], [s.p[0], .46, s.p[2]]], 1));
+    P.scenSh = P.scen.map(s => { const sh = K.add(K.shadowPatch(.4, .36)); setP(sh, [s.p[0], .012, s.p[2]]); return sh; });
+    P.plugSol = K.stopAt(new THREE.Group(), [[-2.88, 1.15, 1.45], [-2.44, 1.04, 1.18], [-2.12, .9, .98], [-1.99, .84, .93]], .96, {push: .03, axis: 'x', squash: .06});
+    P.plugBody = K.add(K.solid(K.rbox(.15, .12, .12, .015), 0xd9e5ef, {tier: 'metal', edge: .5}));
+    P.rail = K.add(K.holoBox(3.36, .05, .07, COL.cyan, .1, .9)); setP(P.rail, A2.at([0, 1.75, 0], 0, .04)); P.rail.rotation.y = A2.ry;
+    P.goalSol = P.goals.map((g, i) => K.stopAt(new THREE.Group(), [A2.at([0, 3.0, 0], (i - 1.5) * .85, .12), A2.at([0, 2.5, 0], (i - 1.5) * .85, .04), A2.at([0, 2.06, 0], (i - 1.5) * .85)], 1));
+    P.wallSol = P.walls.map(w => { const h = w.userData.home; return K.stopAt(new THREE.Group(), [[h[0] * 1.5, 0, h[2] * 1.5], [h[0] * 1.2, 0, h[2] * 1.2], [h[0], 0, h[2]]], 1); });
+    P.wallSh = P.walls.map(() => K.add(K.shadowPatch(.95, .34)));
+    P.teamSol = P.teams.map(tm => { const a = [tm.p[0], 1.35, tm.p[2]], b = P.mx.position.toArray(); return K.stopAt(new THREE.Group(), [a, [(a[0] + b[0]) / 2, Math.max(a[1], b[1]) + .55, (a[2] + b[2]) / 2], b], .84); });
+    P.rangeFlow = P.rangeLinks.map(l => K.add(K.flow([], {curve: l.userData.curve, color: COL.green, n: 6, size: 5, speed: .6})));
     return P;
   },
   update(c, P, K, S, car) {
@@ -77,7 +89,14 @@ export const demand1 = {
     op(P.user, c.show(0, 1, 2, 0)); op(P.userLink, c.show(0, 1, 2, 0)); K.drawLine(P.userLink, c.p(0, 1, 0, 1.6));
     // —— 2 场景带出需求 ——
     const hiCity = c.pulse(1, 0, 1.4), hiFam = c.pulse(1, 1, 2.2);
-    P.scen.forEach((s, i) => { const hi = i === 0 ? hiCity : hiFam, k = stagger(c.p(0, 2, 0, 'end'), i, 3), live = c.show(0, 2, 1, 2); op(s.ring, k * live * (.6 + .4 * hi)); op(s.icon, k * live); s.icon.position.y = .75 + .3 * k; s.icon.scale.setScalar(.55 * (1 + .5 * hi)); });
+    P.scen.forEach((s, i) => {
+      const hi = i === 0 ? hiCity : hiFam, k = stagger(c.p(0, 2, 0, 'end'), i, 3), live = c.show(0, 2, 1, 2);
+      op(s.ring, k * live * (.6 + .4 * hi)); op(s.icon, k * live);
+      const r = P.scenSol[i].userData.travel(k * 1.08);                 // 图标落到光圈上就停住（不穿地面）
+      s.icon.position.copy(P.scenSol[i].children[0].position);
+      s.icon.scale.setScalar(.55 * (1 + .5 * hi) * (1 - .07 * r.over));  // 触面瞬间压一下
+      s.ring.scale.setScalar(1 + .1 * r.over); op(P.scenSh[i], k * live * .5);
+    });
     op(P.road, c.show(1, 0, 1, 2) * .9); P.road.userData.move(t, 7);
     if (c.between(1, 0, 1, 2.2)) car.spin(t * 7 / car.wheelR);
     const cabinK = c.show(1, 2, 2, 0);
@@ -85,14 +104,21 @@ export const demand1 = {
     S.show('cabin', cabinK); S.show('occupant', c.show(1, 2, 1, 3) * .9);
     const reqK = [c.in(1, 2), c.in(1, 3), c.in(1, 3.5)];
     op(P.post, c.show(1, 3, 2, 0)); op(P.plug, c.show(1, 3, 2, 0)); K.growTube(P.plug, c.p(1, 3, 1, 3.5)); op(P.port, c.show(1, 3.3, 2, 0) * (.6 + .4 * c.pulse(1, 3.4, 1.4)));
+    // 插头沿电缆推到充电口：到口岸停住并压紧 0.06，越界只换算成 0.03 的轴向让位
+    const seat = P.plugSol.userData.travel(c.p(1, 3.05, 1, 3.8));
+    P.plugBody.position.copy(P.plugSol.children[0].position); op(P.plugBody, c.show(1, 2.95, 2, 0));
+    P.port.scale.setScalar(1 + .3 * seat.over);
     S.show('battery', c.show(1, 3.3, 2, 0) * .9); S.battery.modules.forEach((m, i) => op(m.userData.top, clamp((t - c.T(1, 3.3)) * 1.6 - i * .12)));
     S.show('eea', c.show(1, 3.6, 2, 0) * .85); S.eea.reach = c.lin(1, 3.6, 1, 'end');
     // —— 3 期待变成目标 ——
+    op(P.rail, c.show(2, 0, 3, 0) * .7);
     P.goals.forEach((g, i) => {
       const k = stagger(c.p(2, 0, 2, 1), i, 4), live = c.out(3, 0, .8);
       op(g.ring, k * live); op(g.arc, k * live); g.arc.geometry.setDrawRange(0, Math.floor(g.arc.geometry.index.count * k * .7 / 6) * 6);
       const m = stagger(c.p(2, 1, 2, 'end'), i, 4); op(g.meth, m * live); op(g.ok, c.show(2, 1.7) * m * live);
-      g.ring.position.y = g.arc.position.y = lerp(2.4, 2.05, k);
+      const r = P.goalSol[i].userData.travel(k * 1.07);                 // 目标环落到横杆槽位上就停住
+      g.ring.position.copy(P.goalSol[i].children[0].position); g.arc.position.copy(g.ring.position);
+      g.ring.scale.setScalar(1 + .1 * r.over);
     });
     op(P.goalIcons[0], stagger(c.p(2, 0, 2, 1), 3, 4) * c.out(3, 0, .8));
     P.req.forEach((r, i) => { const k = c.p(2, 0, 2, .7); setP(r.b, mixV(r.home, P.goals[i].p, k)); r.b.scale.setScalar(.42 * (1 - .28 * k)); op(r.b, reqK[i] * c.out(3, 0, .8)); });
@@ -107,11 +133,15 @@ export const demand1 = {
     op(P.rangeIcons[3].b, c.show(3, 2.5, 4, 0)); S.show('hv', c.show(3, 2.5, 4, 0)); S.show('drive', c.show(3, 2.5, 4, 0) * .9); S.show('thermal', c.show(3, 2.6, 4, 0) * .7);
     op(P.rangeGoal, c.show(3, 2.8, 4, 1)); op(P.rangeGoalIcon, c.show(3, 3, 4, 1)); P.rangeGoal.scale.setScalar(1 + .3 * c.pulse(3, 3.2, 1.4));
     P.rangeLinks.forEach((l, i) => { op(l, c.show(3, 3, 4, 1)); K.drawLine(l, stagger(c.p(3, 3, 3, 'end'), i, 4)); });
+    P.rangeFlow.forEach((f, i) => { op(f, c.show(3, 3, 4, 1)); f.userData.update(t + i * .35, c.lin(3, 3, 4, .6)); });   // 四个因素的能量汇到续航目标就停住
     // —— 5 成本法规周期 ——
     P.walls.forEach((w, i) => {
-      const k = i === 0 ? c.p(4, 0, 4, .8) : c.p(4, 1 + i * .25, 4, 1.8 + i * .25);
-      op(w, Math.min(k * 1.3, c.out(5, 0, .8))); w.scale.y = Math.max(.001, k);
-      const sq = c.p(4, 2, 4, 'end') * .3, h = w.userData.home; setP(w, [h[0] * (1 - sq), 0, h[2] * (1 - sq)]);
+      const k = i === 0 ? c.p(4, 0, 4, .8) : c.p(4, 1 + i * .25, 4, 1.8 + i * .25), a = Math.min(k * 1.3, c.out(5, 0, .8));
+      op(w, a); w.scale.y = Math.max(.001, k);
+      P.wallSol[i].userData.travel(k);                                  // 墙从外侧滑到边界线，到线即停
+      const q = P.wallSol[i].children[0].position, sq = c.p(4, 2, 4, 'end') * .3;
+      setP(w, [q.x * (1 - sq), 0, q.z * (1 - sq)]);                     // 落位后被相邻约束再内收 30%（相互牵制）
+      setP(P.wallSh[i], [w.position.x, .012, w.position.z]); op(P.wallSh[i], a * .55);
     });
     P.goals4.forEach((g, i) => { const k = c.show(4, 0, 5, .2) * stagger(c.p(4, 0, 4, 1), i, 4); op(g.r, k); op(g.b, k); g.r.position.y = g.b.position.y = 2.0 + .06 * Math.sin(t * 3 + i) * c.show(4, 2); });
     P.tension.forEach((l, i) => { const k = c.show(4, 2, 5, 0); op(l, k * (.55 + .45 * Math.sin(t * 9 + i))); K.drawLine(l, c.p(4, 2, 4, 2.6)); });
@@ -120,7 +150,12 @@ export const demand1 = {
     const mk = c.p(5, 0, 5, .8);
     op(P.mx, c.in(5, 0)); P.mx.userData.cells.forEach((cell, i) => { const k = stagger(mk, i, 12, .7); op(cell, k); cell.scale.setScalar(.3 + .7 * k); });
     P.goals4.forEach((g, i) => { if (c.after(5, 0)) { const k = c.p(5, 0, 5, .5); op(g.r, 1 - k); op(g.b, 1 - k); setP(g.b, mixV(g.p, P.mx.userData.cells[i * 3 % 12].getWorldPosition(new THREE.Vector3()).toArray(), k)); } });
-    P.teams.forEach((tm, i) => { const k = stagger(c.p(5, 1, 5, 'end'), i, 3); op(tm.ring, k); op(tm.icon, k); op(P.teamLinks[i], k); K.drawLine(P.teamLinks[i], k); op(P.teamToCar[i], c.show(5, 1.4)); K.drawLine(P.teamToCar[i], c.p(5, 1.4, 5, 'end')); });
+    P.teams.forEach((tm, i) => {
+      const k = stagger(c.p(5, 1, 5, 'end'), i, 3); op(tm.ring, k); op(tm.icon, k); op(P.teamLinks[i], k); K.drawLine(P.teamLinks[i], k);
+      const r = P.teamSol[i].userData.travel(k * 1.05);                 // 三方沿协作线接入同一矩阵，停在矩阵边缘
+      tm.icon.position.copy(P.teamSol[i].children[0].position); tm.icon.scale.setScalar(.5 * (1 - .12 * r.over));
+      op(P.teamToCar[i], c.show(5, 1.4)); K.drawLine(P.teamToCar[i], c.p(5, 1.4, 5, 'end'));
+    });
     if (c.after(5, 0)) { car.set('paint', c.p(5, 0, 5, 1)); car.set('ghost', 1 - c.p(5, 0, 5, 1)); car.set('edges', .4 * c.pulse(5, 1.4, 3)); }
   }
 };
@@ -175,6 +210,14 @@ export const demand2 = {
     P.shell = K.add(K.line(profileCurve(car, {z: 0}), COL.green, .9)); P.shell2 = K.add(K.line(profileCurve(car, {z: .85}), COL.green, .6)); P.shell3 = K.add(K.line(profileCurve(car, {z: -.85}), COL.green, .6));
     P.lockI = chip(K, 'lock', COL.green, [0, 1.85, 0], .36);
     P.side = [['palette', COL.pink, -3.0], ['gear', COL.blue, 3.0]].map(([ic, col, al]) => { const p = B5.at([0, 1.1, 0], al, -.5); return {b: chip(K, ic, col, p, .46), l: link(K, p, [al > 0 ? 1.4 : -1.4, 1.0, 0], col, .2), p}; });
+    // 落位/进退求解器（不进场景）：包络落进坐标、剖切刀推到中线、电池沿拆装路径滑到干涉点、硬点被拉到允许边界、两侧图标滑到车身
+    P.boxSol = P.boxes.map(b => K.stopAt(new THREE.Group(), [[b.position.x, b.position.y + .6, b.position.z], [b.position.x, b.position.y + .14, b.position.z], b.position.toArray()], 1));
+    P.boxSh = P.boxes.map(b => { const sh = K.add(K.shadowPatch(.8, .3)); setP(sh, [b.position.x, .012, b.position.z]); return sh; });
+    P.blade = K.add(K.holoBox(4.95, 1.75, .02, COL.cyan, .1, .85));
+    P.bladeSol = K.stopAt(new THREE.Group(), [[0, .85, 1.38], [0, .85, .72], [0, .85, 0]], 1);
+    P.eject = K.stopAt(new THREE.Group(), [[0, .2, 0], [0, -.05, 0], [-.4, -.05, 1.6], [-.4, .02, 2.4]], .58, {push: .03, axis: 'y'});
+    P.hpSol = K.stopAt(new THREE.Group(), [hp[3], mixV(hp[3], P.goal.position.toArray(), .3)], 1);
+    P.sideSol = P.side.map((s, i) => { const tgt = [i ? 1.45 : -1.45, 1.0, 0]; return K.stopAt(new THREE.Group(), [s.p, [(s.p[0] + tgt[0]) / 2, Math.max(s.p[1], tgt[1]) + .5, (s.p[2] + tgt[2]) / 2], tgt], 1); });
     return P;
   },
   update(c, P, K, S, car) {
@@ -183,29 +226,45 @@ export const demand2 = {
     const g0 = c.p(0, 0, 0, 1);
     car.set('paint', 1 - .9 * g0); car.set('ghost', g0);
     P.dims.forEach((d, i) => op(d, stagger(c.p(0, 1, 0, 2), i, 4) * c.out(1, 0)));
-    P.boxes.forEach((b, i) => { op(b, stagger(c.p(0, 1.3, 0, 2.3), i, 4) * c.out(1, 0)); });
+    P.boxes.forEach((b, i) => {
+      const k = stagger(c.p(0, 1.3, 0, 2.3), i, 4) * c.out(1, 0), r = P.boxSol[i].userData.travel(stagger(c.p(0, 1.3, 0, 2.3), i, 4) * 1.07);
+      op(b, k); b.position.copy(P.boxSol[i].children[0].position); b.scale.setScalar(1 - .05 * r.over);   // 包络落进同一坐标，到面压 5%
+      op(P.boxSh[i], k * .5);
+    });
     P.axes.forEach((a, i) => { op(a, c.show(0, 2, 1, 0)); K.growTube(a, c.p(0, 2, 0, 2.6)); });
     S.show('battery', c.show(0, 1.3, 4, 0) * .8); S.show('drive', c.show(0, 1.5, 4, 0) * .7); S.show('cabin', c.show(0, 1.6) * .6);
     // 2 剖开
     const cut = c.show(1, 0, 3, 0);
     if (cut > 0) { car.clip([0, 0, -1], lerp(1.2, 0, c.p(1, 0, 1, .8))); car.set('paint', .9); car.set('ghost', .3); }
+    P.bladeSol.userData.travel(c.p(1, 0, 1, .8)); P.blade.position.copy(P.bladeSol.children[0].position);   // 剖切刀推到中线就停
+    op(P.blade, cut * (.45 + .55 * c.p(1, 0, 1, .8)));
     op(P.cut, cut); K.drawLine(P.cut, c.p(1, 0, 1, 1));
     S.show('occupant', c.show(1, 1, 3, 0) * .9); S.sub(S.occupant.front2, 0); S.sub(S.occupant.rear, 0);
     P.vert.forEach((d, i) => op(d, stagger(c.p(1, 1, 1, 'end'), i, 3) * c.out(3, 0)));
     op(P.squeeze, c.show(1, 1.8, 2, 1) * (.6 + .4 * Math.sin(t * 6)));
     // 3 调整
-    const adj = c.p(2, 0, 2, .8);
+    const adj = c.p(2, 0, 2, .8) * (1 - c.p(3, 0, 3, .5));
     S.occupant.front.position.y += .07 * adj; S.battery.g.scale.y = 1 + .25 * adj;
+    // 乘员抬高 + 电池增厚 → 车顶真的被顶起来：漆面跟着同一个形变场走（uMode 3 = 局部鼓起）
+    const df = car.layers.heat.mat.uniforms;
+    df.uCenter.value.set(.1, 1.36, 0); df.uRadius.value = 1.15; df.uMode.value = 3; df.uDeform.value = adj > .02 ? 1 : 0;
+    car.setDeformScale(adj > .02 ? .2 : .08); car.setDeformFollow(adj > .02);
     op(P.roofNew, c.show(2, .3, 3, 0)); K.drawLine(P.roofNew, c.p(2, .3, 2, 1));
     // 4 冲突与活动空间
     op(P.clash, c.show(3, 0, 4, 0) * (.5 + .5 * Math.sin(t * 8))); op(P.clashWarn, c.show(3, 0, 4, 1));
     const st = c.show(3, 1, 4, 0); op(P.steer, st); car.wheels[0].rotation.y = car.wheels[1].rotation.y = .5 * Math.sin((t - c.T(3, 1)) * 2.4) * st;
     op(P.path, c.show(3, 1.4, 4, 0)); K.drawLine(P.path, c.p(3, 1.4, 3, 2));
-    const out = c.p(3, 1.6, 3, 2.4) * c.out(4, 0); if (c.after(3, 1.6)) { S.battery.g.position.set(-.4 * out, -.25 * out, 1.6 * out); }
+    // 电池包沿拆装路径滑出：到干涉点被 stopAt 停住，停一下再原路退回（不穿过后悬/副车架）
+    const ej = c.p(3, 1.6, 3, 2.15) * (1 - c.p(3, 2.35, 4, 0)), e = P.eject.userData.travel(ej);
+    S.battery.g.position.copy(P.eject.children[0].position); P.clash.scale.setScalar(1 + .9 * e.over);
     op(P.service, c.show(3, 2, 4, 0)); op(P.wrench, c.show(3, 2, 4, 0));
     // 5 硬点协调
     const h5 = c.show(4, 0, 5, 1);
-    P.hp.forEach((h, i) => { op(h, h5 * stagger(c.p(4, 0, 4, .6), i, 8)); h.position.y += .04 * Math.sin(t * 2 + i) * c.show(4, .5, 4, 1); h.scale.setScalar(1 + .4 * c.pulse(4, .4 + i * .05, .8)); });
+    P.hp.forEach((h, i) => {
+      op(h, h5 * stagger(c.p(4, 0, 4, .6), i, 8));
+      if (i === 3) { const r = P.hpSol.userData.travel(c.p(4, .5, 4, 1.6)); h.position.copy(P.hpSol.children[0].position); h.scale.setScalar(1 + .5 * r.over); }   // 被专业拉到允许边界就停
+      else { h.position.y += .04 * Math.sin(t * 2 + i) * c.show(4, .5, 4, 1); h.scale.setScalar(1 + .4 * c.pulse(4, .4 + i * .05, .8)); }
+    });
     P.roles.forEach((r, i) => { const k = stagger(c.p(4, .3, 4, 1), i, 5); op(r.b, k * c.out(5, 0)); op(r.l, k * c.out(5, 0)); K.drawLine(r.l, k); });
     op(P.goal, c.show(4, 1, 5, 0)); op(P.goalIcon, c.show(4, 1, 5, 0)); op(P.loop, c.show(4, 1, 5, 0)); K.drawLine(P.loop, c.p(4, 1, 4, 1.6));
     P.goal.scale.setScalar(1 + .25 * c.pulse(4, 1.6, 1.2));
@@ -213,7 +272,10 @@ export const demand2 = {
     const ok = c.show(5, 0);
     [P.shell, P.shell2, P.shell3].forEach((l, i) => { op(l, ok); K.drawLine(l, c.p(5, 0, 5, .8)); });
     op(P.lockI, c.show(5, .6));
-    P.side.forEach((s, i) => { const k = stagger(c.p(5, 1, 5, 'end'), i, 2); op(s.b, k); op(s.l, k); K.drawLine(s.l, k); });
+    P.side.forEach((s, i) => {
+      const k = stagger(c.p(5, 1, 5, 'end'), i, 2); op(s.b, k); op(s.l, k); K.drawLine(s.l, k);
+      P.sideSol[i].userData.travel(k); s.b.position.copy(P.sideSol[i].children[0].position);   // 造型/工程图标滑到车身侧面就停
+    });
     if (ok > 0) { car.set('ghost', 1 - ok * .6); car.set('paint', ok * .9); car.set('edges', .3 * ok); }
   }
 };
@@ -261,6 +323,19 @@ export const demand3 = {
     P.hist = docStack(K, 4, COL.amber, .3, .4); setP(P.hist, [2.9, .1, -.9]);
     P.histLink = link(K, [2.9, .3, -.9], [1.2, .6, -.2], COL.amber, .2, true);
     P._w = w;
+    // 板面/台面坐标换算 + 落位求解器（不进场景）：条件图标落到任务条上、结果块交到下一任务、
+    // 变更块沿协作线传到相邻任务、任务条并入基线台面的卡槽（到面即停，不再用 *0 的死代码）
+    const bp = P.board.position, br = C0.ry, bc = Math.cos(br), bs = Math.sin(br);
+    const bW = (lx, ly) => [bp.x + bc * lx, bp.y + ly, bp.z - bs * lx];
+    const bxc = i => P.bars[i].userData.x + P.bars[i].userData.w / 2;
+    P.rail2 = K.add(K.holoBox(5.9, .05, .14, COL.green, .12, 1)); setP(P.rail2, bW(0, .125)); P.rail2.rotation.y = br;
+    P.ioSol = [0, 1, 2].map(i => K.stopAt(new THREE.Group(), [bW(-.65 + (i - 1) * .55, 1.98), bW(-.65 + (i - 1) * .55, 1.56), bW(-.65 + (i - 1) * .55, 1.18)], 1));
+    P.depSol = [1, 2].map(i => K.stopAt(new THREE.Group(), [bW(-2.6, 2.2), bW(-1.8, 2.1), bW(bxc(i), P.bars[i].userData.y)], .9));
+    P.exchSol = [[1, 2], [3, 4]].map(([a, b]) => K.stopAt(new THREE.Group(), [bW(bxc(a), P.bars[a].userData.y), bW((bxc(a) + bxc(b)) / 2 + .4, 1.25), bW(bxc(b), P.bars[b].userData.y)], .9));
+    P.chgSol = [1, 4].map(i => K.stopAt(new THREE.Group(), [bW(-1.1, 1.4), bW(-.6, 1.9), bW(bxc(i), P.bars[i].userData.y)], .9));
+    // 并入基线的路径走板面局部坐标：九条任务条压到板下沿的同一条 baseline 轨上
+    P.joinSol = P.bars.map((b, i) => { const sx = -2.8 + i * .68; return K.stopAt(new THREE.Group(), [[b.position.x, b.position.y, 0], [(b.position.x + sx) / 2, (b.position.y + .2) / 2 + .5, 0], [sx, .2, 0]], 1); });
+    P.chunk = [0, 1, 2, 3, 4, 5].map(() => K.add(K.solid(K.rbox(.13, .13, .13, .02), 0xe7f3ff, {tier: 'metal', edge: .6})));
     return P;
   },
   update(c, P, K, S, car) {
@@ -275,15 +350,20 @@ export const demand3 = {
       const xx = b.userData.x + b.userData.w / 2; b.position.x = lerp(-3.6, xx, k); b.position.y = lerp(2.2, b.userData.y, k);
     });
     const hi = P.bars[3]; hi.scale.y = 1 + .6 * c.show(0, 1, 1, 0);
-    P.io.forEach((io, i) => { const p = w(hi); const k = stagger(c.p(0, 1, 0, 'end'), i, 3); op(io, k * c.out(1, 0)); setP(io, [p[0] + (i - 1) * .55 * C0.right[0], p[1] + .35, p[2] + (i - 1) * .55 * C0.right[2]]); });
+    P.io.forEach((io, i) => {
+      const k = stagger(c.p(0, 1, 0, 'end'), i, 3), r = P.ioSol[i].userData.travel(k * 1.07);   // 输入/交付/完成条件落到任务条上就停
+      op(io, k * c.out(1, 0)); io.position.copy(P.ioSol[i].children[0].position); io.scale.setScalar(.28 * (1 - .1 * r.over));
+    });
     // 2 先后依赖
     op(P.lay, c.show(1, 0, 1, 2) * .9); P.bars[0].scale.y = 1 + .5 * c.show(1, 0, 2, 0);
     P.dep.forEach((l, i) => { const [a, b] = l.userData.ab; const pa = w(P.bars[a]), pb = w(P.bars[b]); const pts = [[pa[0] + C0.right[0] * .6, pa[1], pa[2] + C0.right[2] * .6], [pb[0] - C0.right[0] * .7, pb[1], pb[2] - C0.right[2] * .7]]; l.geometry.setFromPoints(pts.map(p => new THREE.Vector3(...p))); op(l, c.show(1, .5 + i * .6, 3, 0)); });
+    P.depSol.forEach((s, i) => { s.userData.travel(stagger(c.p(1, .5, 1, 2.2), i, 2)); const ck = P.chunk[i]; ck.position.copy(s.children[0].position); op(ck, c.show(1, .5, 3, 0)); });   // 任务0 的结果真的交到任务1、2 的起点，到边界就停
     op(P.sketch, c.show(1, 2, 2, 0)); K.drawLine(P.sketch, c.p(1, 2, 1, 'end')); S.show('biw', c.show(1, 2.2, 2, 0) * .7);
     // 3 并行
     const par = c.show(2, 0, 3, 0);
     [1, 2, 3, 4].forEach(i => P.bars[i].scale.y = 1 + .35 * par * (.5 + .5 * Math.sin(t * 3 + i)));
     P.exch.forEach((f, i) => { const [a, b] = f.userData.ab; const pa = w(P.bars[a]), pb = w(P.bars[b]); f.userData.update = f.userData.update; const cur = new THREE.LineCurve3(new THREE.Vector3(...pa), new THREE.Vector3(...pb)); const pos = f.geometry.attributes.position, ak = f.geometry.attributes.aK; for (let j = 0; j < 8; j++) { const u = ((t * .9 + j / 8 + i * .2) % 1); const v = cur.getPoint(u); pos.setXYZ(j, v.x, v.y, v.z); ak.setX(j, .8); } pos.needsUpdate = ak.needsUpdate = true; op(f, c.show(2, 2, 3, 0)); });
+    P.exchSol.forEach((s, i) => { const u = c.lin(2, .2, 3, 0); s.userData.travel(u < .5 ? u * 2 : 2 - u * 2); const ck = P.chunk[2 + i]; ck.position.copy(s.children[0].position); op(ck, c.show(2, .2, 3, 0)); });   // 条件块在两条任务之间来回交接
     car.set('edges', Math.max(.2, c.show(2, 1, 3, 0) * .7)); S.show('biw', Math.max(0, c.show(2, 1, 3, 0) * .6)); S.show('drive', c.show(2, 1, 3, 0) * .7); S.show('eea', c.show(2, 1, 3, 0) * .7);
     if (c.between(2, 1, 3, 0)) { car.set('paint', .25); car.set('ghost', .8); }
     // 4 变更同步
@@ -291,13 +371,26 @@ export const demand3 = {
     op(P.change, c.show(3, 0, 4, 0) * (1 - ch * .3)); setP(P.change, b2); P.change.rotation.y = C0.ry; P.change.scale.setScalar(1 + 5 * ch);
     [1, 3].forEach((i, k) => { const lit = c.pulse(3, .5 + k * .3, 1.2); P.bars[i].scale.y = 1 + lit; });
     const st = c.show(3, 1.3, 3, 2.6); op(P.stale, st); const p4 = w(P.bars[4]); setP(P.stale, [p4[0], p4[1] + .35, p4[2]]); P.bars[4].userData.edge.material.opacity = 1 - .8 * st;
+    P.chgSol.forEach((s, i) => { s.userData.travel(stagger(c.p(3, .3, 3, 1.6), i, 2)); const ck = P.chunk[4 + i]; ck.position.copy(s.children[0].position); op(ck, c.show(3, .3, 4, 0)); });   // 变更块沿协作线传到相邻任务
     // 5 阶段评审
     const g = c.lin(4, 0, 4, 1.2); op(P.gate, c.show(4, 0, 5, 0)); P.gate.position.x = lerp(-3.4, 3.1, g);
-    P.bars.forEach((b, i) => { const pass = i !== 7 && b.position.x + b.userData.w / 2 < P.gate.position.x; const k = c.show(4, 0, 5, 1) * (pass ? 1 : 0); op(P.oks[i], k); const p = w(b); setP(P.oks[i], [p[0], p[1] + .27, p[2]]); if (i === 7 && c.after(4, 1)) op(b, .35 + .3 * Math.sin(t * 6)); });
+    P.bars.forEach((b, i) => {
+      const pass = i !== 7 && b.position.x + b.userData.w / 2 < P.gate.position.x, k = c.show(4, 0, 5, 1) * (pass ? 1 : 0);
+      const kk = clamp((P.gate.position.x - (b.position.x + b.userData.w / 2)) / .3);   // 门扫过该条之后才开始盖章
+      op(P.oks[i], k); const p = w(b);
+      setP(P.oks[i], [p[0], p[1] + .27 + .3 * (1 - kk) * k, p[2]]);
+      P.oks[i].scale.setScalar(.2 * (1 - .1 * Math.max(0, 1 - Math.abs(1 - kk) * 5) * k));   // 盖到位压 0.1
+      if (i === 7 && c.after(4, 1)) op(b, .35 + .3 * Math.sin(t * 6));
+    });
     // 6 基线
     const bl = c.p(5, 0, 5, 1);
     op(P.base, c.show(5, 0)); P.base.scale.set(bl, 1, bl);
-    P.bars.forEach((b, i) => { if (c.after(5, 0) && i !== 7) { b.position.y = lerp(b.position.y, .2 + (i % 5) * .02, c.p(5, 0, 5, 1) * 0); } });
+    op(P.rail2, bl * c.show(5, 0, 5, 'end') * .9);
+    P.bars.forEach((b, i) => {
+      if (!c.after(5, 0) || i === 7) return;
+      const r = P.joinSol[i].userData.travel(bl * 1.05);                // 任务条真的沿路径落到基线台面的卡槽里
+      b.position.copy(P.joinSol[i].children[0].position); b.scale.y = 1 - .08 * r.over;   // 到面后轴向压紧 0.08
+    });
     op(P.lockI, c.show(5, .7));
     op(P.hist, c.show(5, 1)); P.hist.userData.sheets.forEach((s, i) => s.position.y = i * .04 * stagger(c.p(5, 1, 5, 'end'), i, 4) + .02);
     op(P.histLink, c.show(5, 1.3)); K.drawLine(P.histLink, c.p(5, 1.3, 5, 'end'));

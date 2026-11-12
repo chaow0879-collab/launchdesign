@@ -92,7 +92,7 @@ export const classa2 = {
     // 间隙检查：两块外板真的分开再合拢——后片沿 x 退开 .12m 再回来，停在被 stopAt 挡住的设计间隙 .05m 上
     P.panA = K.add(K.holoBox(.46, .56, .02, COL.cyan, .10, .95)); setP(P.panA, [.745, .66, .935]);
     const panB = K.holo(new THREE.BoxGeometry(.46, .56, .02), COL.cyan, .10, .95); setP(panB, [1.255, .66, .935]);
-    P.panB = K.add(K.stopAt(panB, [[.12, 0, 0], [0, 0, 0]], 1, {squash: .04}));
+    P.panB = K.add(K.stopAt(panB, [[.12, 0, 0], [-.0042, 0, 0]], .9662, {squash: .02}));
     P.gapDim = dim(K, [.975, .66, .97], [1.025, .66, .97], COL.amber, .05);
     P.gapFill = K.add(K.glow(new THREE.BoxGeometry(1, .54, .004), COL.amber, 2.4, .5)); setP(P.gapFill, [1.0, .66, .945]);
     P.gaps = [[1.0, .7, .935], [-.05, .7, .935], [-1.15, .7, .925]].map(p => K.add(K.ring(.05, COL.green, .006))).map((r, i) => { setP(r, [[1.0, .7, .94], [-.05, .7, .94], [-1.15, .7, .93]][i]); return r; });
