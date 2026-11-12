@@ -1,0 +1,8 @@
+/* Keep the visual stage dedicated to the animated vehicle and equipment. */
+.model-note,.view-tools,#scene-labels{display:none!important}
+#scene{filter:saturate(.94)}
+#action-overlay{min-height:0;background:transparent;border:0;border-top:1px solid #90d7e51b;border-radius:0;box-shadow:none;backdrop-filter:none;padding:9px 0 0}
+.action-row{display:none}
+.relationship{background:transparent;border:0;padding-left:0}
+#shot-strip button{background:#11233055;border-color:transparent}
+#shot-strip button.active{background:#79c1d00d;border-color:transparent}

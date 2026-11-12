@@ -1,0 +1,7 @@
+# 依赖与构建中间产物
+node_modules/
+out/
+*.log
+
+# 素材包不放仓库（8.3MB 车模 + 7.5MB 配音已内联进 dist/）
+assets-unpacked/

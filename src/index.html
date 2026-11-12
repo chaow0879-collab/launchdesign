@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>龙创 · 一辆智能电动车的诞生</title><meta name="description" content="用真实轿车模型，理解汽车设计的流程、技术工种与协作。"><style>/*__STYLE__*/</style></head>
+<body class="paused">
+<main id="experience" aria-label="汽车设计交互动画">
+ <canvas id="scene" aria-label="可拖动旋转的真实轿车三维模型"></canvas><audio id="narration" preload="auto" hidden></audio>
+ <div class="vignette"></div>
+ <header><div class="brand"><span class="brand-symbol">L<span>↗</span></span><div><b>龙创汽车设计</b><small>LAUNCH DESIGN · 从创意到工程</small></div></div><div class="header-title">一辆智能电动车的诞生 <span>ELECTRIC · CONNECTED · ENGINEERED</span></div><div class="header-tools"><button id="about" class="quiet">关于演示</button><button id="fullscreen" class="icon" aria-label="全屏显示" title="全屏显示">⛶</button></div></header>
+ <section class="chapter-heading"><div class="eyebrow"><i></i><span id="chapter-kicker">AUTOMOTIVE DESIGN</span><span id="chapter-count">01 / 08</span></div><h1 id="chapter-title">从一个想法<br>到一辆真实的车</h1><p id="chapter-subtitle">设计，不只是画出好看的外形。</p><div id="relationship" class="relationship"></div></section>
+ <div class="model-note"><span id="view-label">整车展示</span><span id="view-detail">真实车型外观 · 教学示意</span></div>
+ <div class="view-tools"><button id="reset-view" title="回到当前镜头的推荐视角">↺ 回到推荐视角</button><span>拖动旋转 · 滚轮缩放</span></div>
+ <aside id="work-panel" class="glass" aria-label="当前工序与岗位协作">
+  <div class="work-top"><span class="eyebrow">当前工序</span><span id="node-count"></span></div>
+  <h2 id="step-title"></h2><p id="professional" class="professional"></p>
+  <div id="coverage-focus" class="coverage-focus" aria-label="当前镜头的专业工作"><div class="coverage-heading"><span>镜头中的专业</span><b id="coverage-title"></b></div><p id="coverage-task"></p><div class="coverage-result"><span>形成</span><p id="coverage-output"></p></div><div class="coverage-reason"><span>目的</span><p id="coverage-purpose"></p></div></div>
+  <div class="plain"><span>工作结果</span><p id="plain"></p></div>
+  <div class="section-label"><span class="dot lead"></span>主导本步 <small>负责把当前成果做出来</small></div>
+  <div id="leads" class="lead-list"></div>
+  <div class="section-label parallel-label"><span class="parallel-symbol">∥</span>同步协作 <small>可以一起开展</small></div>
+  <div id="parallel" class="parallel-list"></div>
+  <div class="handoff"><div><span>先行输入</span><p id="input"></p></div><span class="flow-arrow">↓</span><div><span>本步交付</span><p id="output"></p></div></div>
+  <div class="workflow-notes"><p id="workflow-gate"></p><p id="workflow-parallel"></p></div>
+  <div class="purpose"><span>为什么做</span><p id="goal"></p></div>
+  <button id="coverage-toggle" aria-expanded="false" aria-controls="coverage-list">查看本步全部专业工作 <span aria-hidden="true">＋</span></button><div id="coverage-list" hidden></div>
+ </aside>
+ <div id="role-popover" class="role-popover glass" hidden><button class="close" aria-label="关闭岗位说明">×</button><div class="eyebrow">当前工序 · 技术工种</div><h3></h3><p class="role-channel"></p><p class="role-task"></p><div class="section-label">这个工种的目的</div><p class="role-purpose"></p><div class="section-label">本步形成什么</div><p class="role-output"></p><div class="section-label">通道子类覆盖的专业</div><p class="role-examples"></p><small>按技术族通道子类组织，具体分工以项目约定为准。</small></div>
+ <div id="scene-labels" aria-hidden="true"></div>
+ <section id="action-overlay" aria-label="设计动作与镜头">
+  <div class="shot-hud"><span id="shot-count" class="shot-count">镜头 01 / 06</span><b id="shot-title">整车与目标</b><p id="shot-detail"></p><button id="camera-mode" aria-pressed="true" title="切换自动运镜与自由观察"><span class="camera-orbit" aria-hidden="true">◎</span> 自动运镜</button></div>
+  <div id="shot-strip" aria-label="当前工序的镜头"></div>
+  <div class="action-row"><div class="action-now"><span>正在完成</span><b id="action-title"></b><p id="action-detail"></p></div><div id="action-phases"></div></div>
+ </section>
+ <div id="autoplay-hint" role="status" hidden><span class="sound-symbol" aria-hidden="true">♪</span><span>动画已自动播放，点击页面开启讲解声音</span></div>
+ <div class="caption-area"><span id="voice-badge">AI 神经配音</span><p id="caption">正在进入汽车设计的第一道工序。</p></div>
+ <footer class="player glass">
+  <div class="substeps"><span class="section-label">本阶段</span><div id="steps"></div><span id="status" role="status">准备中</span></div>
+  <div class="transport"><button id="play" class="play" disabled><span class="play-icon">▶</span><span class="play-label">自动播放</span></button><button id="prev" class="icon" aria-label="上一步" title="上一步并播放">‹</button><button id="next" class="icon" aria-label="下一步" title="下一步并播放">›</button><span id="time">00:00 / 00:00</span><input id="seek" type="range" min="0" max="1000" value="0" aria-label="当前工序播放进度"><button id="mute" class="quiet" aria-label="关闭声音">声音 开</button><select id="rate" aria-label="播放速度"><option value="0.85">0.85×</option><option value="1" selected>1.0×</option><option value="1.15">1.15×</option><option value="1.3">1.3×</option></select></div>
+  <nav id="chapters" aria-label="汽车设计流程：点击任意节点播放"></nav>
+  <div class="footer-hint"><span>点击流程即播放 · 当前工序继续讲解 · 镜头可随时切换</span><span>专业并行推进，评审与验证持续迭代</span></div>
+ </footer>
+ <div id="loading"><div class="loading-mark">L↗</div><h2>正在进入汽车设计现场</h2><p>三维场景与配音全部保存在这一份 HTML 中</p></div>
+ <dialog id="about-dialog"><button class="close" aria-label="关闭关于演示">×</button><div class="eyebrow">关于这段交互讲解</div><h2>汽车设计，是多专业共同实现一个目标。</h2><p>龙创面向汽车主机厂提供整车、模块和技术咨询等设计研发服务。本演示把业务组织为 8 个阶段、26 个工序，呈现创意、模型、工程、试制验证和技术交付之间的协作。每道工序依次呈现六段工作动作，从准备、操作到检查与结果。工具、工装和工作件围绕同一个操作目标联动，镜头展示准备、接触操作与完成结果，镜头条可用于直接观察某个动作。</p><p>技术分工按任职资格表中的技术族通道子类组织：7个通道、23个汽车相关子类。飞行器与工业产品设计属于其他业务板块，本演示不纳入。各节点的主导与同步关系是教学整理，供业务校正，不代表固定的组织授权或项目周期。</p><p>展示车辆：2024 Tesla Model 3，模型仅用于解释汽车设计流程，不表示该车为龙创设计、客户或合作案例。内部系统、扫描线和性能效果为教学示意，并非该车实际 CAD、结构或仿真结果。</p><p>模型作者 <a href="https://sketchfab.com/RBLXSupercars" target="_blank" rel="noopener">RBLXSupercars</a>，下载页上传者 <a href="https://sketchfab.com/3d-models/tesla-model-3-2024-36c52f3f89f6439c90310f14e8ff33f2" target="_blank" rel="noopener">brandonleong28</a>；依据模型内嵌的 <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> 许可使用。演示调整了展示比例、材质、灯光并增加教学叠加层。</p><p>v8 动画为另做的一套：真车作主角，工具、数据流与检查动作统一用发光的全息线框表示，舞台上不放文字和表格。内部系统、扫描、仿真色图与试验效果均为教学示意，不代表该车实际工程数据或试验成绩。乘员只以半透明测量包络出现，用于说明空间检查。</p><p>配音采用微软中文神经语音，经 edge-tts 生成离线音频。旁白改写为自然讲解，英文术语转为易听懂的中文，按语义调整语速与停顿。字幕与动作按语音时间戳同步；画面节拍取自配音中每句话内部的停顿，说到哪件事，画面就演哪件事。Three.js 与相关加载器遵循 MIT 许可。页面载入后自动播放动画；浏览器如限制有声自动播放，首次点击页面即可开启讲解声音。</p><p class="sources">业务依据：<a href="https://www.launchdesign.com.cn/" target="_blank" rel="noopener">龙创官网</a> · <a href="https://static.cninfo.com.cn/finalpage/2024-08-06/1220804729.PDF" target="_blank" rel="noopener">公开申报文件</a>。具体承接范围、审批权与验证责任以项目约定为准。</p><small>演示稿 v8 · 动画重做版 · 业务内容待校正 · 使用空格播放/暂停，方向键切换工序，Esc 关闭说明。</small></dialog>
+ <template id="workflow-source-links"><a href="https://group.mercedes-benz.com/technology/innovation/vision/design-process.html" target="_blank" rel="noopener">Mercedes-Benz 从创意到样车</a> · <a href="https://pininfarina.it/approach/methodology" target="_blank" rel="noopener">Pininfarina 设计方法</a> · <a href="https://www.magna.com/inside-automotive/concept-creation/new-car-development-process" target="_blank" rel="noopener">Magna 整车开发</a> · <a href="https://www.dspace.com/en/pub/home/applicationfields/foo/hil-testing.cfm" target="_blank" rel="noopener">dSPACE 在环验证</a> · <a href="https://insights.edag.com/en/international-homologation-process-type-approval-in-the-automotive-industry" target="_blank" rel="noopener">EDAG 认证规划</a></template>
+</main>
+<script id="story-data" type="application/json">/*__DATA__*/</script><script id="model-data" type="application/octet-stream">/*__MODEL__*/</script><script id="audio-data" type="application/json">/*__AUDIO__*/</script><script>/*__APP__*/</script>
+</body></html>

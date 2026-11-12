@@ -1,0 +1,14 @@
+龙创汽车设计交互动画 v8 源码
+
+目录
+  src/engine/   渲染核心、真车、全息道具、车内系统
+  src/nodes/    26 个工序的动画脚本（每个含 6 个镜头的标题与说明）
+  src/app.js    页面与播放逻辑（沿用 v7.1，只改了场景接口）
+  data/beats.json  从配音停顿切出的半句节拍
+  build.mjs     构建脚本
+
+构建（需要 Node.js 20+）
+  npm install
+  node build.mjs          生成离线单文件 HTML
+  node build.mjs --web    生成网页发布版（页面与车模、配音分开）
+注意：build.mjs 里的素材路径 R 指向 v7.1 解包目录（车模 GLB、26 段 MP3、audio-manifest.json），换电脑需改成本机路径。

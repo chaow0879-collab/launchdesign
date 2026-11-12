@@ -1,0 +1,43 @@
+/* More space for people, working tools and their interaction with the car. */
+@media(min-width:761px){
+ .chapter-heading{top:81px}
+ .chapter-heading h1{font-size:29px;line-height:1.15;margin:8px 0 4px}
+ #chapter-subtitle{font-size:12px;margin:0;line-height:1.55}
+ .relationship{margin-top:5px;padding-top:0;padding-bottom:0;font-size:9px}
+ #action-overlay{padding-top:7px}
+}
+@media(min-width:1700px){
+ .chapter-heading{top:94px}
+ .chapter-heading h1{font-size:36px}
+}
+/* v7: the physical operation gets a larger, uninterrupted stage. */
+#scene{filter:none}
+.vignette{background:linear-gradient(90deg,rgba(6,12,22,.15),transparent 45%,rgba(6,12,22,.08)),linear-gradient(0deg,#080e17 0%,transparent 28%,transparent 75%,#080e17 100%)}
+@media(min-width:761px){
+ header{height:58px}
+ .chapter-heading{top:72px;display:grid;grid-template-columns:auto 1fr;align-items:baseline;column-gap:15px;width:calc(100% - var(--panel-edge) - 45px)}
+ .chapter-heading>.eyebrow{grid-column:1/3;font-size:8px}
+ .chapter-heading h1{font-size:27px;line-height:1.15;margin:8px 0 0;white-space:nowrap}
+ #chapter-subtitle{font-size:11px;margin:0;letter-spacing:.3px}
+ .chapter-heading .relationship{display:none}
+ #action-overlay{bottom:156px;padding:8px 0 0;min-height:0}
+ #shot-strip{margin-top:7px}
+ #work-panel{top:72px;bottom:156px}
+ .caption-area{bottom:119px;height:30px}
+ .player{bottom:10px;padding:6px 14px}
+ .substeps{min-height:23px}
+ .transport{height:37px}
+ .play{height:30px}
+ #chapters{margin-top:1px}
+ #chapters button{padding:6px 4px}
+ .footer-hint{display:none}
+ .role-popover{top:160px;max-height:calc(100vh - 300px)}
+}
+@media(min-width:1700px){
+ header{height:70px}.chapter-heading{top:88px}.chapter-heading h1{font-size:34px}#chapter-subtitle{font-size:13px}#work-panel{top:88px}
+}
+@media(max-width:1000px) and (min-width:761px){#chapter-subtitle{display:none}.chapter-heading h1{font-size:24px}}
+@media(max-width:760px){
+ .chapter-heading{top:66px}.chapter-heading h1{font-size:23px;margin:7px 0 3px}.chapter-heading .relationship{display:none}
+ #action-overlay{min-height:0;padding-left:0;padding-right:0}
+}
