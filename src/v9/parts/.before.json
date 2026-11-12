@@ -1,0 +1,46 @@
+{
+  "groups": {
+    "battery": {
+      "tris": 14492,
+      "meshes": 32
+    },
+    "drive": {
+      "tris": 6896,
+      "meshes": 14
+    },
+    "thermal": {
+      "tris": 3288,
+      "meshes": 4
+    },
+    "hv": {
+      "tris": 2560,
+      "meshes": 2
+    },
+    "eea": {
+      "tris": 18938,
+      "meshes": 43
+    },
+    "cabin": {
+      "tris": 6754,
+      "meshes": 18
+    },
+    "biw": {
+      "tris": 24840,
+      "meshes": 81
+    },
+    "chassis": {
+      "tris": 24864,
+      "meshes": 22
+    },
+    "occupant": {
+      "tris": 7908,
+      "meshes": 15
+    }
+  },
+  "total": 110540,
+  "totalMesh": 231,
+  "root": {
+    "tris": 110540,
+    "meshes": 231
+  }
+}

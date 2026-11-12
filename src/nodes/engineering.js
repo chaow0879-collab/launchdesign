@@ -66,18 +66,28 @@ export const engineering2 = {
     op(P.seal, c.show(0, 1.6, 2, 0)); K.drawLine(P.seal, c.p(0, 1.6, 0, 2.2)); P.seal.position.copy(B.g.position);
     P.conds.forEach((d, i) => { const k = stagger(c.p(0, 2, 0, 'end'), i, 3), live = c.out(1, 0); op(d.b, k * live); op(d.l, k * live); K.drawLine(d.l, k); });
     // —— 2 模组落位 ——
+    // 每个模组沿竖直路径下落，落位终点由 stopAt 贴住冷板（接触点之后不再下沉，vib 只做横向微振）
+    P.drop = P.drop || (() => {
+      const curve = K.curve([[0, 1.1, 0], [0, .5, 0], [0, 0, 0], [0, -.42, 0]]);
+      const target = new THREE.Vector3(0, 0, 0);
+      let best = 1, bestD = Infinity;
+      for (let i = 0; i <= 96; i++) { const u = i / 96, p = curve.getPointAt(u), d = p.distanceTo(target); if (d < bestD) { bestD = d; best = u; } }
+      return K.stopAt(new THREE.Group(), curve, best);      // 冷板上表面 = 落位接触点
+    })();
+    const dropY = k => { P.drop.userData.travel(k); return P.drop.children[0].position.y; };
+    const comp = c.p(1, 1.2, 1, 2) * .05;                   // 紧固后的模组压缩量
     B.modules.forEach((m, i) => {
       const k = stagger(c.lin(1, 0, 1, 1), i, 12, .55), land = ease(k);
-      m.position.y = B.y0 + .12 + 1.1 * (1 - land) ** 2;
+      m.position.y = B.y0 + .12 + dropY(land);
       S.sub(m, c.after(1, 0) ? clamp(k * 3) : 0);
       op(m.userData.top, clamp((k - .9) * 10) * .9 + c.pulse(1, 0, .01));
       const vib = c.show(1, 1, 1, 2) * .012 * Math.sin(t * 40 + i), therm = 1 + .05 * c.pulse(1, 2, 1.6);
-      m.position.x = B.modules[i].position.x + vib; m.scale.set(therm, 1, therm);
+      m.position.x = B.modules[i].position.x + vib; m.scale.set(therm, 1 - comp, therm);
     });
     S.sub(B.lid, c.show(5, 0) * .8); S.sub(B.busbars[0], c.in(2, 0)); S.sub(B.busbars[1], c.in(2, 0));
     B.busbars.forEach(b => K.growTube(b, c.p(2, 0, 2, .8)));
     S.sub(B.hvPort, c.in(2, 0));
-    P.bolts.forEach((b, i) => { const k = stagger(c.p(1, 1, 1, 2), i % 12, 12, .6); op(b, c.show(1, 1, 2, 0) * clamp(k * 4)); b.position.y = .45 - .08 * k; b.position.z += B.g.position.z; b.rotation.y = k * 12; });
+    P.bolts.forEach((b, i) => { const k = stagger(c.p(1, 1, 1, 2), i % 12, 12, .6); op(b, c.show(1, 1, 2, 0) * clamp(k * 4)); b.position.y = .45 - .08 * k; b.position.z += B.g.position.z; b.rotation.y = k * Math.PI * 4; });   // 4 圈旋入，随 k 递增
     P.ins.forEach((p, i) => { const k = stagger(c.p(1, 1, 1, 2), i, 5); op(p, c.show(1, 1, 2, 0) * k * .9); p.position.y = .3 + .4 * (1 - k); p.position.z = B.g.position.z; });
     op(P.vib, c.show(1, 1, 2, 0)); op(P.heat, c.show(1, 2, 2, 0)); op(P.safe, c.show(1, 2.5, 2, 0));
     // —— 3 高压通路 ——
@@ -183,10 +193,19 @@ export const engineering1 = {
     S.cabin.seats.forEach((s, i) => { const k = stagger(c.p(3, 0, 3, 1.4), i, 3); s.position.y += 1.6 * (1 - k); });
     S.cabin.dash.position.y += 1.6 * (1 - c.p(3, .8, 3, 1.6)); S.cabin.wheel.position.y += 1.6 * (1 - c.p(3, 1, 3, 1.8)); S.cabin.disp.position.y += 1.6 * (1 - c.p(3, 1, 3, 1.8));
     P.tracks.forEach((l, i) => op(l, c.show(3, 0, 4, 0) * .6));
-    // 5 紧固
+    // 5 紧固：机械臂在两颗螺栓之间走"抬起→平移→落下"两段，落到位后多圈拧入，拧紧瞬间轴向压 .08 表示贴合
     op(P.arm, c.show(4, 0, 5, .5));
-    const bi = Math.min(5, Math.floor(c.lin(4, 0, 4, 'end') * 6)), bp = P.bolts[bi].position;
-    P.arm.userData.reach(c.after(4, 0) ? [bp.x, bp.y + .05, bp.z + .02] : [1.2, 1.2, 1.2]);
+    const seg = c.lin(4, 0, 4, 'end') * 6, bi = Math.min(5, Math.floor(seg)), bf = clamp(seg - bi);
+    const bp0 = P.bolts[bi].position, bp1 = P.bolts[Math.min(5, bi + 1)].position;
+    const from = [bp0.x, bp0.y + .05, bp0.z + .02], to = [bp1.x, bp1.y + .05, bp1.z + .02];
+    const mid = [(from[0] + to[0]) / 2, Math.max(from[1], to[1]) + .16, (from[2] + to[2]) / 2];
+    const up = ease(clamp(bf / .45)), dn = ease(clamp((bf - .55) / .45));
+    const cur0 = [lerp(from[0], mid[0], up), lerp(from[1], mid[1], up), lerp(from[2], mid[2], up)];
+    const cur1 = [lerp(mid[0], to[0], dn), lerp(mid[1], to[1], dn), lerp(mid[2], to[2], dn)];
+    const cur = dn > 0 ? cur1 : cur0;                                                // 先抬到中间高点，再落到下一颗
+    const press = Math.max(0, Math.sin(clamp((bf - .45) / .4) * Math.PI)) * .08;   // 拧紧瞬间的轴向压缩
+    P.arm.userData.reach(c.after(4, 0) ? [cur[0], cur[1] - press, cur[2]] : [1.2, 1.2, 1.2]);
+    if (c.after(4, 0)) P.bolts[bi].rotation.y = clamp((bf - .45) / .5) * Math.PI * 6;   // 6 圈拧入，随曲线递增
     P.tq.forEach((q, i) => op(q, c.show(4, i ? 1 : 0, 5, .5)));
     // 6 接口复核
     P.rings.forEach((r, i) => { op(r, c.show(5, .5) * stagger(c.p(5, .5, 5, 1.5), i, 5)); r.rotation.y = Math.PI / 2; });

@@ -12,6 +12,8 @@ export function buildSuspensionCorner(ctx, opts = {}) {
   const matDark = P.tier('shell', {color: C.blackSteel, roughness: .42});
   const matRubber = P.tier('rubber', {color: 0x16191c, roughness: .9});
   const matSpring = P.tier('machined', {color: C.spring, roughness: .26});
+  // lod='lo'：非特写角（例如前轴）用，省掉防尘套细节/钻孔/稳定杆连杆等，外观轮廓不变
+  const lo = opts.lod === 'lo';
 
   // ---------- 滑柱：减振器筒 + 活塞杆 + 防尘套 + 顶胶 ----------
   const strut = new THREE.Group(); strut.name = 'strut'; strut.position.set(0, .06, -.055); g.add(strut);
@@ -26,6 +28,7 @@ export function buildSuspensionCorner(ctx, opts = {}) {
   const spring = mesh(G.spring(.075, .009, 6, .26, {perTurn: 11, radial: 5}), matSpring, 'spring', strut);
   spring.position.y = .19;
   for (const [y, r] of [[.055, .075], [.325, .072]]) {
+    if (lo) break;
     const seat = mesh(G.lathe([[r - .018, 0], [r + .004, 0], [r + .004, .008], [r - .018, .008], [r - .018, 0]], 16, {angle: 45}), P.tier('shell', {color: C.darkAlu}), 'spring-seat', strut);
     seat.position.y = y;
   }
@@ -34,7 +37,7 @@ export function buildSuspensionCorner(ctx, opts = {}) {
   const tmRubber = mesh(G.lathe([[.018, 0], [.055, 0], [.055, .012], [.018, .012], [.018, 0]], 16, {angle: 52}), matRubber, 'top-rubber', topMount);
   const tmSteel = mesh(G.lathe([[.016, .012], [.048, .012], [.048, .024], [.016, .024], [.016, .012]], 16, {angle: 40}), matSteel, 'top-plate', topMount);
   const tmBolts = [];
-  for (let i = 0; i < 3; i++) {
+  if (!lo) for (let i = 0; i < 3; i++) {
     const a = i / 3 * Math.PI * 2;
     const b = F.bolt(P, {d: 8 * .001, len: 16 * .001, threaded: false});
     b.position.set(Math.cos(a) * .040, .026, Math.sin(a) * .040);
@@ -51,6 +54,7 @@ export function buildSuspensionCorner(ctx, opts = {}) {
     b.rotation.z = Math.PI / 2;
     b.position.set(0, -.128, -.30 + dz);
     bushings.push(b);
+    if (lo) continue;
     const sleeve = mesh(G.tube(.0155, .011, .034, 12), matSteel, 'bush-sleeve', arm);
     sleeve.rotation.z = Math.PI / 2; sleeve.position.copy(b.position);
   }
@@ -81,9 +85,9 @@ export function buildSuspensionCorner(ctx, opts = {}) {
     knuckle.add(st); studs.push(st);
   }
   // ABS 传感器
-  const absSensor = mesh(G.rcyl(.008, .03, {seg: 8}), P.tier('plastic', {color: 0x24292e}), 'abs-sensor', knuckle);
-  absSensor.rotation.z = Math.PI / 2; absSensor.position.set(.045, .05, -.10);
-  const absWire = mesh(G.cable([[.06, .05, -.10], [.09, .02, -.12], [.10, -.04, -.14]], .004, {segs: 12, radial: 4}), matRubber, 'abs-wire', knuckle);
+  const absSensor = lo ? null : mesh(G.rcyl(.008, .03, {seg: 8}), P.tier('plastic', {color: 0x24292e}), 'abs-sensor', knuckle);
+  if (absSensor) { absSensor.rotation.z = Math.PI / 2; absSensor.position.set(.045, .05, -.10); }
+  const absWire = lo ? null : mesh(G.cable([[.06, .05, -.10], [.09, .02, -.12], [.10, -.04, -.14]], .004, {segs: 12, radial: 4}), matRubber, 'abs-wire', knuckle);
 
   // ---------- 通风制动盘 ----------
   const disc = new THREE.Group(); disc.name = 'brake-disc'; g.add(disc);
@@ -100,7 +104,7 @@ export function buildSuspensionCorner(ctx, opts = {}) {
   }
   // 孔洞作为暗色小圆片（贴面），比布尔省面数，视觉上仍是穿孔
   const holes = new THREE.Group(); holes.name = 'disc-holes'; disc.add(holes);
-  for (const h of holeEntries) {
+  if (!lo) for (const h of holeEntries) {
     const d = mesh(new THREE.CircleGeometry(.0055, 8), P.tier('label', {color: 0x2a3035, roughness: .9, textures: null, metalness: 0}), 'disc-hole', holes);
     d.position.set(h.p[0], h.p[1], h.p[2]);
   }
@@ -132,14 +136,17 @@ export function buildSuspensionCorner(ctx, opts = {}) {
   }
 
   // ---------- 稳定杆连杆（球头 + 杆）----------
-  const swayLink = new THREE.Group(); swayLink.name = 'sway-link'; swayLink.position.set(-.06, -.13, -.20); g.add(swayLink);
-  const linkRod = mesh(G.rcyl(.008, .13, {seg: 8}), matSteel, 'link-rod', swayLink);
-  linkRod.rotation.z = .35;
-  for (const s of [-1, 1]) {
-    const end = mesh(G.lathe([[0, -.012], [.014, -.004], [.014, .006], [0, .014]], 10, {angle: 34}), matSteel, 'link-end', swayLink);
-    end.position.set(s * .022, s * .064, 0);
-    const boot = mesh(G.bellows(.017, .018, 2, .1, 8), matRubber, 'link-boot', swayLink);
-    boot.position.copy(end.position);
+  const swayLink = lo ? null : new THREE.Group();
+  if (swayLink) {
+    swayLink.name = 'sway-link'; swayLink.position.set(-.06, -.13, -.20); g.add(swayLink);
+    const linkRod = mesh(G.rcyl(.008, .13, {seg: 8}), matSteel, 'link-rod', swayLink);
+    linkRod.rotation.z = .35;
+    for (const s of [-1, 1]) {
+      const end = mesh(G.lathe([[0, -.012], [.014, -.004], [.014, .006], [0, .014]], 10, {angle: 34}), matSteel, 'link-end', swayLink);
+      end.position.set(s * .022, s * .064, 0);
+      const boot = mesh(G.bellows(.017, .018, 2, .1, 8), matRubber, 'link-boot', swayLink);
+      boot.position.copy(end.position);
+    }
   }
 
   const plate = mesh(new THREE.PlaneGeometry(.07, .03), P.tier('label', {map: L.label({serial: 'MCA-FR', spec: 'MacPherson · vented Ø330', w: 256, h: 96, qr: false})}), 'nameplate', strut);
@@ -153,7 +160,7 @@ export function buildSuspensionCorner(ctx, opts = {}) {
     arm, lowerArm, bushings, ballJoint, ball, bjBoot, bjStud,
     knuckle, knBody, hub, studs, absSensor, absWire,
     disc, ring, hat, holes, caliper, calBody, pads, bleed, banjo, hose, calBolts,
-    swayLink, linkRod, plate, shadow
+    swayLink, linkRod: swayLink ? swayLink.children[0] : null, plate, shadow
   }, 12000);
 }
 

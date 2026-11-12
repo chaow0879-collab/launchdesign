@@ -234,8 +234,22 @@ export function createGeo(THREE) {
   }
 
   // profile: [[u,v],...] 闭合；scaleAt(t)->number 可让截面沿路径渐变（A 柱上宽下窄）
-  function sweep(pts, profile, {segments = 24, closedPath = false, caps = true, scaleAt = null, smooth = true} = {}) {
-    const curve = new CatmullRomCurve3(pts.map(q => q.isVector3 ? q.clone() : new V3(q[0], q[1], q[2])), closedPath, 'centripetal');
+  // straight:true 时按折线走（板缝/密封胶条这种直边），否则用 Catmull-Rom 样条（梁柱/管线）。
+  // 注意：样条穿过直角拐角会向外鼓出，矩形一圈的胶条必须用 straight，否则会跑到包体外面。
+  function sweep(pts, profile, {segments = 24, closedPath = false, caps = true, scaleAt = null, smooth = true, straight = false} = {}) {
+    let P3 = pts.map(q => q.isVector3 ? q.clone() : new V3(q[0], q[1], q[2]));
+    if (straight) {
+      const per = Math.max(2, Math.round(segments / Math.max(1, P3.length - 1)));
+      const dense = [];
+      const last = closedPath ? P3.length : P3.length - 1;
+      for (let i = 0; i < last; i++) {
+        const a = P3[i], b = P3[(i + 1) % P3.length];
+        for (let k = 0; k < per; k++) dense.push(a.clone().lerp(b, k / per));
+      }
+      if (!closedPath) dense.push(P3[P3.length - 1].clone());
+      P3 = dense;
+    }
+    const curve = new CatmullRomCurve3(P3, closedPath, 'centripetal');
     const {ps, normals, binormals, n} = framesFor(curve, Math.max(2, segments), closedPath);
     const m = profile.length;
     const rings = closedPath ? n : n + 1;
@@ -502,7 +516,7 @@ export function createGeo(THREE) {
     const profile = [
       [-width / 2, 0], [-width * .28, -depth], [width * .28, -depth], [width / 2, 0]
     ];
-    return sweep(pts, profile, {segments: segs, caps: false, smooth: false});
+    return sweep(pts, profile, {segments: segs, caps: false, smooth: false, straight: true});
   }
 
   // ---------- 阵列/合并 ----------

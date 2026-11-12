@@ -18,43 +18,61 @@ export function buildBatteryModule(ctx, opts = {}) {
   const frameTop = mesh(G.cbox(Lx + .004, .008, Lz + .004, .003), P.tier('machined', {color: C.darkAlu, roughness: .38}), 'frame-top');
   frameTop.position.y = Ly / 2 - .004;
   const endPlates = [];
-  for (const s of [-1, 1]) {
-    const ep = mesh(G.cbox(.010, Ly - .004, Lz + .002, .0015), P.tier('machined', {color: C.alu, roughness: .3}), `end-plate-${s > 0 ? 'F' : 'B'}`);
-    ep.position.x = s * (Lx / 2 - .002);
-    endPlates.push(ep);
+  if (hero) {
+    for (const s of [-1, 1]) {
+      const ep = mesh(G.cbox(.010, Ly - .004, Lz + .002, .0015), P.tier('machined', {color: C.alu, roughness: .3}), `end-plate-${s > 0 ? 'F' : 'B'}`);
+      ep.position.x = s * (Lx / 2 - .002);
+      endPlates.push(ep);
+    }
+  } else {
+    const geos = [-1, 1].map(s => ({geo: G.cbox(.010, Ly - .004, Lz + .002, .0015), matrix: new THREE.Matrix4().makeTranslation(s * (Lx / 2 - .002), 0, 0)}));
+    endPlates.push(mesh(G.mergeGeos(geos), P.tier('machined', {color: C.alu, roughness: .3}), 'end-plates'));
   }
 
   // ---------- 6 个方形电芯单元（每个单独顶盖 + 缝隙，不是一整块）----------
   const cells = [];
   const cellW = (Lx - .04) / 6;
-  for (let i = 0; i < 6; i++) {
-    const x = -Lx / 2 + .02 + cellW * (i + .5);
-    const cell = mesh(G.cbox(cellW - .004, .012, Lz - .05, .0012), P.tier('plastic', {color: 0x2b333a, roughness: .62}), `cell-${i}`);
-    cell.position.set(x, Ly / 2 + .004, 0);
-    cells.push(cell);
-    if (!hero) continue;
-    // 电芯极柱（正/负）：柱 + 绝缘垫圈（分材质）
-    for (const s of [-1, 1]) {
-      const post = mesh(G.lathe([[0, 0], [.006, 0], [.006, .007], [0, .007]], 6, {angle: 30}), P.tier('machined', {color: C.alu, roughness: .22}), 'cell-post');
-      post.position.set(x, Ly / 2 + .012, s * (Lz * .28));
-      const ring = mesh(new THREE.RingGeometry(.0075, .0125, 8), P.tier('plastic', {color: C.orangeDeep, roughness: .55}), 'post-insulator');
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(x, Ly / 2 + .0118, s * (Lz * .28));
+  if (hero) {
+    for (let i = 0; i < 6; i++) {
+      const x = -Lx / 2 + .02 + cellW * (i + .5);
+      const cell = mesh(G.cbox(cellW - .004, .012, Lz - .05, .0012), P.tier('plastic', {color: 0x2b333a, roughness: .62}), `cell-${i}`);
+      cell.position.set(x, Ly / 2 + .004, 0);
+      cells.push(cell);
+      // 电芯极柱（正/负）：柱 + 绝缘垫圈（分材质）
+      for (const s of [-1, 1]) {
+        const post = mesh(G.lathe([[0, 0], [.006, 0], [.006, .007], [0, .007]], 6, {angle: 30}), P.tier('machined', {color: C.alu, roughness: .22}), 'cell-post');
+        post.position.set(x, Ly / 2 + .012, s * (Lz * .28));
+        const ring = mesh(new THREE.RingGeometry(.0075, .0125, 8), P.tier('plastic', {color: C.orangeDeep, roughness: .55}), 'post-insulator');
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(x, Ly / 2 + .0118, s * (Lz * .28));
+      }
     }
+  } else {
+    // 整包视角：6 个电芯顶盖合并成一个几何（省 5 个 draw call/模组，缝隙仍由几何留出）
+    const geos = [];
+    for (let i = 0; i < 6; i++) {
+      const x = -Lx / 2 + .02 + cellW * (i + .5);
+      geos.push({geo: G.cbox(cellW - .004, .012, Lz - .05, .0012), matrix: new THREE.Matrix4().makeTranslation(x, Ly / 2 + .004, 0)});
+    }
+    cells.push(mesh(G.mergeGeos(geos), P.tier('plastic', {color: 0x2b333a, roughness: .62}), 'cells'));
   }
 
   // ---------- 铜排（带折弯与螺栓孔）----------
   const busbars = [];
-  for (const s of [-1, 1]) {
-    const bus = mesh(G.cbox(Lx - .075, .0035, .022, .0008), P.tier('copper', {color: C.copper}), `busbar-${s > 0 ? 'P' : 'N'}`);
-    bus.position.set(0, Ly / 2 + .016, s * .095);
-    busbars.push(bus);
-    if (!hero) continue;
-    for (let i = 0; i < 6; i++) {
-      const x = -Lx / 2 + .02 + cellW * (i + .5);
-      const tab = mesh(G.box(.012, .012, .0016), P.tier('copper', {color: 0xb06d34}), 'busbar-tab');
-      tab.position.set(x, Ly / 2 + .01, s * .095);
+  if (hero) {
+    for (const s of [-1, 1]) {
+      const bus = mesh(G.cbox(Lx - .075, .0035, .022, .0008), P.tier('copper', {color: C.copper}), `busbar-${s > 0 ? 'P' : 'N'}`);
+      bus.position.set(0, Ly / 2 + .016, s * .095);
+      busbars.push(bus);
+      for (let i = 0; i < 6; i++) {
+        const x = -Lx / 2 + .02 + cellW * (i + .5);
+        const tab = mesh(G.box(.012, .012, .0016), P.tier('copper', {color: 0xb06d34}), 'busbar-tab');
+        tab.position.set(x, Ly / 2 + .01, s * .095);
+      }
     }
+  } else {
+    const geos = [-1, 1].map(s => ({geo: G.cbox(Lx - .075, .0035, .022, .0008), matrix: new THREE.Matrix4().makeTranslation(0, Ly / 2 + .016, s * .095)}));
+    busbars.push(mesh(G.mergeGeos(geos), P.tier('copper', {color: C.copper}), 'busbars'));
   }
   // 中间跨接铜排（串联用）
   const bridge = mesh(G.cbox(.02, .0035, Lz * .46, .0008), P.tier('copper', {color: C.copper}), 'busbar-bridge');
@@ -159,7 +177,7 @@ export function buildBatteryPack(ctx, opts = {}) {
 
   // ---------- 12 个模组（整包视角用简化模组，仍保留独立顶盖与铜排）----------
   const modules = [];
-  const modL = .345, modW = .30, modH = .082;
+  const modL = .345, modW = .30, modH = .11;
   for (let i = 0; i < 6; i++) for (let j = 0; j < 2; j++) {
     const mG = buildBatteryModule(ctx, {detail: 'pack', L: modL, H: modH, W: modW, serial: `M${i}${j}`});
     mG.name = `module-${i}-${j}`;
@@ -215,7 +233,7 @@ export function buildBatteryPack(ctx, opts = {}) {
   }
 
   // ---------- 高压连接器（橙色塑料 + 铜端子 + 卡扣 + 警示带）----------
-  const hvConnector = new THREE.Group(); hvConnector.name = 'hvConnector'; hvConnector.position.set(Lx / 2 + .02, .16, .20); g.add(hvConnector);
+  const hvConnector = new THREE.Group(); hvConnector.name = 'hvConnector'; hvConnector.position.set(Lx / 2 - .005, .16, .20); g.add(hvConnector);
   const bodyMat = P.tier('plastic', {color: C.orangeHV, roughness: .48});
   const connBody = mesh(G.rbox(.07, .06, .11, .008, 2), bodyMat, 'connector-body', hvConnector);
   const connNeck = mesh(G.lathe([[.022, 0], [.022, .03], [0, .03]], 12, {angle: 30}), bodyMat, 'connector-neck', hvConnector);
@@ -226,7 +244,7 @@ export function buildBatteryPack(ctx, opts = {}) {
     const barrel = mesh(G.tube(.008, .004, .05, 10), P.tier('copper', {color: 0xc07a3e}), 'terminal-barrel', hvConnector);
     barrel.rotation.z = Math.PI / 2; barrel.position.set(.022, s * .018, 0);
   }
-  const hvCable = mesh(G.cable([[.075, 0, 0], [.16, -.01, .02], [.26, .02, .04]], .013, {segs: 12, radial: 5}), P.tier('rubber', {color: C.orangeHV, roughness: .7}), 'hv-cable', hvConnector);
+  const hvCable = mesh(G.cable([[.075, 0, 0], [.11, -.008, .015], [.14, .006, .03]], .013, {segs: 12, radial: 5}), P.tier('rubber', {color: C.orangeHV, roughness: .7}), 'hv-cable', hvConnector);
   const band = mesh(G.tube(.0148, .0138, .012, 8), P.tier('label', {map: L.hazard(), roughness: .6}), 'hazard-band', hvConnector);
   band.rotation.z = Math.PI / 2; band.position.set(.10, 0, .008);
 

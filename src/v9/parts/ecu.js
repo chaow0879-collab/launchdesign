@@ -8,6 +8,8 @@ export function buildEcu(ctx, opts = {}) {
   const g = ctx.reg('ecu', '区域控制器', 'engineering-3 / validation-3');
   const mesh = (geo, mat, name, parent = g) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.userData.kind = 'part'; parent.add(m); return m; };
   const W = .18, D = .12, wall = .004, baseH = .026;
+  // lod='lo'：区域控制器用（数量多、只在远景出现），省掉板内器件与细节，保留壳体/散热筋/针脚/铭牌
+  const lo = opts.lod === 'lo';
 
   // ---------- 下壳体：底板 + 四壁（不是实心块，能看见内部 PCB）----------
   const base = new THREE.Group(); base.name = 'base'; g.add(base);
@@ -24,7 +26,7 @@ export function buildEcu(ctx, opts = {}) {
     walls.push(wz);
   }
   // 内部加强柱（压铸件的工艺特征）
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+  if (!lo) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const boss = mesh(G.lathe([[.004, 0], [.0075, 0], [.0075, .02], [.004, .02], [.004, 0]], 8, {angle: 45}), P.tier('shell', {color: C.castAlu}), 'boss', base);
     boss.position.set(sx * (W / 2 - .016), .006, sz * (D / 2 - .016));
   }
@@ -35,7 +37,7 @@ export function buildEcu(ctx, opts = {}) {
   board.rotation.x = -Math.PI / 2;
   const chips = [];
   const chipSpec = [[-.045, -.018, .022, .022], [-.010, -.018, .018, .018], [.020, -.020, .026, .018], [.050, .010, .014, .014]];
-  for (const [x, z, w, d] of chipSpec) {
+  if (!lo) for (const [x, z, w, d] of chipSpec) {
     const chip = mesh(G.cbox(w, .0035, d, .0004), P.tier('plastic', {color: 0x14181b, roughness: .5}), 'chip', pcbGrp);
     chip.position.set(x, .0026, z);
     chips.push(chip);
@@ -45,13 +47,16 @@ export function buildEcu(ctx, opts = {}) {
     ]), P.tier('machined', {color: 0xc9d2d8}), 'chip-pins', pcbGrp);
   }
   const caps = [];
-  for (let i = 0; i < 4; i++) {
-    const cap = mesh(G.rcyl(.0035, .006, {seg: 6}), P.tier('machined', {color: 0x8a949c}), 'capacitor', pcbGrp);
-    cap.position.set(.048 - i * .011, .004, -.040);
-    caps.push(cap);
+  let crystal = null;
+  if (!lo) {
+    for (let i = 0; i < 4; i++) {
+      const cap = mesh(G.rcyl(.0035, .006, {seg: 6}), P.tier('machined', {color: 0x8a949c}), 'capacitor', pcbGrp);
+      cap.position.set(.048 - i * .011, .004, -.040);
+      caps.push(cap);
+    }
+    crystal = mesh(G.cbox(.008, .0025, .005, .0003), P.tier('machined', {color: 0xb8c2c9}), 'crystal', pcbGrp);
+    crystal.position.set(-.030, .0026, .030);
   }
-  const crystal = mesh(G.cbox(.008, .0025, .005, .0003), P.tier('machined', {color: 0xb8c2c9}), 'crystal', pcbGrp);
-  crystal.position.set(-.030, .0026, .030);
 
   // ---------- 两排接插件：塑料护套 + 真针脚 ----------
   const connectors = [], pins = [];

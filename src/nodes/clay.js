@@ -4,10 +4,37 @@ import {COL, op, clamp, ease, smooth, lerp, mixV, setP, chip, link, floorRing, s
 const CLAY = 0xb07a52;
 function block(K, car) {
   const bb = car.bbox, w = bb.max.x - bb.min.x + .2, d = bb.max.z - bb.min.z + .1;
-  const m = K.add(new THREE.Mesh(new THREE.BoxGeometry(w, 1, d), new THREE.MeshStandardMaterial({color: 0x9c6b47, roughness: .8, metalness: 0, transparent: true})));
-  m.userData.h0 = bb.max.y + .12; return m;
+  // 顶面细分（40×22）用于按刀路做顶点级去料；base 存原始顶面高度，每帧从它重算，保证可回退
+  const geo = new THREE.BoxGeometry(w, 1, d, 40, 4, 22);
+  const m = K.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color: 0x9c6b47, roughness: .8, metalness: 0, transparent: true})));
+  m.userData.h0 = bb.max.y + .12;
+  m.userData.base = Float32Array.from(geo.attributes.position.array);
+  return m;
 }
 const setBlock = (m, top, bot = .05) => { const h = Math.max(.01, top - bot); m.scale.y = h; m.position.y = bot + h / 2; };
+// 按刀路前缀对坯料顶面做局部切削：已走过的整行削到目标面，当前行只削刀具 x 已越过的部分，未走到的保持坯料高度
+// idx = 当前刀路点序号（每行 47 点、共 19 行，偶数行从 +x 扫向 -x），allow = 留给精加工的余量
+const ROW_PT = 47, ROW_STEP = 1.7 / 18;
+function carveBlank(blk, car, idx, allow, active) {
+  const pos = blk.geometry.attributes.position, base = blk.userData.base;
+  const S = Math.max(.001, blk.scale.y), Py = blk.position.y, top0 = blk.userData.h0;
+  const rowCur = Math.floor(idx / ROW_PT), desc = rowCur % 2 === 0;
+  const sx = 2.3 - .1 * (idx % ROW_PT), toolX = desc ? sx : -sx;
+  for (let i = 0; i < pos.count; i++) {
+    const lx = base[i * 3], ly = base[i * 3 + 1], lz = base[i * 3 + 2];
+    if (ly < .49 || !active) { pos.setY(i, ly); continue; }            // 只动顶面（含侧壁顶沿）；未开工时全部归位
+    const row = Math.min(18, Math.max(0, Math.round((.85 - lz) / ROW_STEP)));
+    const cut = row < rowCur ? 1 : row > rowCur ? 0 : (desc ? (toolX <= lx ? 1 : 0) : (toolX >= lx ? 1 : 0));
+    if (!cut) { pos.setY(i, ly); continue; }
+    // 车身投影内削到“车身顶面 + 余量”，投影外 .3m 内线性塌到坯料底，避免留下 1.5m 高的边墙挡镜头
+    const edge = Math.min(clamp((2.40 - Math.abs(lx)) / .3), clamp((.95 - Math.abs(lz)) / .3));
+    const surf = Math.min(top0, car.heightAt(lx, lz) + allow);
+    const target = Math.max(.16, lerp(.16, surf, edge));
+    pos.setY(i, Math.min(.5, (target - Py) / S));                      // 换算回局部坐标，不低于原顶面
+  }
+  pos.needsUpdate = true;
+  if (active) blk.geometry.computeVertexNormals();
+}
 
 export const clay1 = {
   phases: ['基座与坯料', '设备与刀路', '加工与检查'],
@@ -37,8 +64,8 @@ export const clay1 = {
     P.travel = K.add(K.holoBox(5.2, 1.6, 2.4, COL.green, .03, .6)); setP(P.travel, [0, .85, 0]);
     P.safe = K.add(K.line(Array.from({length: 65}, (_, i) => { const a = i / 64 * Math.PI * 2; return [Math.cos(a) * 3.6, .02, Math.sin(a) * 2.2]; }), COL.amber, .9, true));
     P.feed = [[1, 0, 0], [0, 0, 1], [0, -1, 0]].map(([x, y, z], i) => { const a = K.add(K.tube([[0, 0, 0], [x * .5, y * .5, z * .5]], .012, [COL.red, COL.blue, COL.green][i], {glow: true})); return a; });
-    // 刀路：之字形贴着车顶面
-    const zz = []; for (let i = 0; i <= 18; i++) { const z = -.85 + i * 1.7 / 18; const row = []; for (let x = 2.3; x >= -2.3; x -= .1) row.push([x, car.heightAt(x, z) + .02, z]); zz.push(...(i % 2 ? row.reverse() : row)); }
+    // 刀路：之字形贴着车顶面；从 +z 侧（镜头一侧）扫向 -z，近侧坯料先被削掉，不会留墙挡车
+    const zz = []; for (let i = 0; i <= 18; i++) { const z = .85 - i * 1.7 / 18; const row = []; for (let x = 2.3; x >= -2.3; x -= .1) row.push([x, car.heightAt(x, z) + .02, z]); zz.push(...(i % 2 ? row.reverse() : row)); }
     P.path = K.add(K.line(zz, COL.cyan, .7)); P.pathPts = zz;
     P.chips = K.add(K.flow([[0, 0, 0], [.2, .3, .1], [.4, .1, .2]], {color: COL.amber, n: 14, size: 5, speed: 1.6}));
     P.tmpl = [-1.2, -.1, 1.4].map(x => K.add(K.line(section(car, x).map(p => [p[0], p[1] + .02, p[2]]), COL.white, .95)));
@@ -61,14 +88,14 @@ export const clay1 = {
     op(P.feed[0], c.show(1, .6, 2, 0)); op(P.feed[1], c.show(1, .6, 2, 0)); op(P.feed[2], c.show(1, .6, 2, 0));
     const tip = P.gan.userData.carriage.position; P.feed.forEach(f => setP(f, [P.gan.position.x, P.gan.userData.h - .62, 0]));
     op(P.travel, c.show(1, 1.5, 2, 1)); op(P.safe, c.show(1, 2, 3, 0)); K.drawLine(P.safe, c.p(1, 2, 1, 'end'));
-    // 3 粗加工：坯料从上往下逐层去除，露出油泥车形
-    const rough = c.p(2, 0, 3, 0);
+    // 3 粗加工：刀路沿表面铺开，坯料按刀路前缀逐行去料（不再整体缩放）
     op(P.path, c.show(2, 0, 4, 0) * .8); K.drawLine(P.path, c.lin(2, 0, 2, 1.2));
-    if (c.after(2, 0)) { const top = lerp(top0, .75, rough); setBlock(P.blk, top); }
-    // 4 精加工：主轴往复，块体消失
+    // 4 精加工：主轴往复，余量收净后块体淡出
     const fine = c.lin(3, 0, 3, 'end');
-    if (c.after(3, 0)) { setBlock(P.blk, lerp(.75, .1, ease(fine))); op(P.blk, c.out(4, 0) * (1 - fine * .9)); }
+    if (c.after(3, 0)) { op(P.blk, c.out(4, 0) * (1 - fine * .9)); }
     const k = Math.floor((c.after(2, 0) ? c.lin(2, 0, 4, 0) : 0) * (P.pathPts.length - 1)), pp = P.pathPts[Math.max(0, k)];
+    // 粗加工留 .05 余量，精加工收到 .008（留一点避免与 clay 层 z-fighting）；每帧从原始顶点重算，可任意回退
+    carveBlank(P.blk, car, k, lerp(.05, .008, c.after(3, 0) ? ease(fine) : 0), c.after(2, 0) && !c.after(4, 1));
     if (c.between(2, 0, 4, 0)) { P.gan.position.x = pp[0]; P.gan.userData.carriage.position.set(0, P.gan.userData.h, pp[2]); P.gan.userData.carriage.position.y = pp[1] + .6; }
     op(P.chips, c.show(2, .3, 4, 0)); P.chips.position.set(pp[0], pp[1], pp[2]); P.chips.userData.update(t, 1);
     if (c.after(4, 0)) { op(P.gan, c.out(4, 0)); }

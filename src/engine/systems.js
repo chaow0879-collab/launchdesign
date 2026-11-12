@@ -1,7 +1,16 @@
-// 车内系统（教学示意，按真车尺寸摆放）：电池包、电驱、热管理、高压线、低压线束与控制器、传感器、座椅与座舱、白车身骨架、悬架、乘员包络。
-// 所有系统默认隐藏；工序脚本用 S.show(名称, 透明度) 点亮，并可直接驱动子部件。
+// 车内系统（教学示意，按真车尺寸摆放）：电池包、电驱、热管理、高压线、低压线束与控制器、传感器、
+// 座椅与座舱、白车身骨架、悬架、乘员包络。
+// 几何来自 v9 部件库（src/v9/parts）：真倒角、分材质、板缝、真螺栓/针脚；flow/线框/光晕这类“科技层”
+// 仍用 kit（它们是光效，不是实体）。
+//
+// 对外契约（26 个工序脚本在用，名字与层级不准改）：
+//   S.battery.{g,pack,tray,plate,coolant,modules[12],busbars[2],lid,hvPort,L,Wd,x0,y0}
+//   S.cabin.{g,seats[3],dash,wheel,disp} / S.eea.{g,central,zones[4],sensors,screen,loom,branches,sig,trunkSig,fans,reach}
+//   S.biw.{g,beams[],joints[]} / S.chassis.{g,parts[4],rack,sub} / S.drive.{g} / S.rear,S.front
+//   S.thermal / S.hv / S.occupant / S.show / S.sub / S.reset / S.apply
 import * as THREE from 'three';
 import {op, COL} from './kit.js';
+import {createParts} from '../v9/parts/index.js';
 
 export function createSystems(K, car) {
   const root = K.sysRoot;
@@ -11,41 +20,87 @@ export function createSystems(K, car) {
   const xF = wc[0].x, xR = wc[2].x, track = Math.abs(wc[0].z), wr = car.wheelR;
   const metal = (c, o = {}) => new THREE.MeshStandardMaterial({color: c, metalness: o.m ?? .6, roughness: o.r ?? .35, emissive: o.e ?? 0x000000, emissiveIntensity: o.ei ?? 0, transparent: true});
 
+  // ---------- 部件库 ----------
+  // 一次建好工具箱；部件各自带 palette，材质互不共享，op() 的透明度动画不会串台。
+  const parts = createParts(THREE, {car});
+  // 非索引几何补一条顺序索引：K.growTube 是按索引数量做“生长”的，白车身梁必须能被它驱动
+  const growable = (m) => {
+    const geo = m && m.geometry;
+    if (geo && !geo.index) {
+      const n = geo.attributes.position.count;
+      const arr = n > 65535 ? new Uint32Array(n) : new Uint16Array(n);
+      for (let i = 0; i < n; i++) arr[i] = i;
+      geo.setIndex(new THREE.BufferAttribute(arr, 1));
+    }
+    return m;
+  };
+
   // ---------- 电池包 ----------
   {
     const g = W('battery');
     const L = 2.3, Wd = 1.36, x0 = -.02, y0 = .17;
-    const tray = new THREE.Mesh(K.rbox(L + .08, .1, Wd + .06, .03), metal(0x3d4c58, {m: .7, r: .45}));
-    tray.position.set(x0, y0 - .02, 0); g.add(tray);
-    const trayEdge = K.holoBox(L + .1, .12, Wd + .08, COL.cyan, 0, .55); trayEdge.position.copy(tray.position); g.add(trayEdge);
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(L - .04, .012, Wd - .06), metal(0x6d8494, {m: .8, r: .3, e: 0x0a3550, ei: .4}));
-    plate.position.set(x0, y0 + .04, 0); g.add(plate);
-    const serp = []; for (let i = 0; i <= 8; i++) { const x = x0 - L / 2 + .12 + i * (L - .24) / 8; serp.push([x, y0 + .052, i % 2 ? .55 : -.55], [x + .001, y0 + .052, i % 2 ? -.55 : .55]); }
-    const coolant = K.tube(serp, .014, 0x2aa9ff, {glow: true, segs: 220}); g.add(coolant);
-    const modules = [];
-    for (let i = 0; i < 6; i++) for (let j = 0; j < 2; j++) {
-      const m = new THREE.Group();
-      const body = new THREE.Mesh(K.rbox(.33, .12, .6, .02), metal(0x22303b, {m: .5, r: .4}));
-      const top = K.glow(new THREE.BoxGeometry(.31, .006, .56), COL.teal, 1.4, .55); top.position.y = .063;
-      m.add(body, top); m.position.set(x0 - L / 2 + .2 + i * .378, y0 + .12, j ? -.32 : .32); g.add(m); modules.push(m); m.userData.top = top; m.userData.topCol = top.material.color.clone();
+    // 旧件的托盘底面在 y=.15。新包按“底面 y=0”建模，整体抬到旧高度，包围盒对齐：
+    // 旧包 y≈.10~.40 / x≈-1.21~1.21 / z≈±.71，新包抬升后 y≈.15~.39、同宽同长。
+    const pack = parts.build('batteryPack', {serial: 'PACK-2418-96S', L, W: Wd});
+    const lift = .15;
+    for (const c of pack.children.slice()) c.position.y += lift;
+    g.add(pack);
+    // 旧件模组中心在 y=.29（engineering-2 的落位动画按这个高度写死），新模组对齐到同一高度
+    for (const m of pack.modules) m.position.y = y0 + .12;
+
+    // 每个模组保留旧的“顶面能量层”语义：concept/demand/validation 会 op() 它、validation 还会改它的颜色
+    for (const m of pack.modules) {
+      const top = K.glow(new THREE.BoxGeometry(.30, .004, .26), COL.teal, 1.4, .55);
+      top.position.y = .062;
+      top.name = 'module-top';
+      m.add(top);
+      m.userData.top = top;
+      m.userData.topCol = top.material.color.clone();
     }
-    const busbars = []; for (let j = 0; j < 2; j++) { const z = j ? -.32 : .32; const b = K.tube([[x0 - L / 2 + .2, y0 + .19, z], [x0 + L / 2 - .2, y0 + .19, z]], .012, COL.orange, {glow: true}); g.add(b); busbars.push(b); }
-    const lid = K.holoBox(L, .02, Wd, COL.cyan, .05, .6); lid.position.set(x0, y0 + .22, 0); g.add(lid);
-    const hvPort = new THREE.Mesh(K.rbox(.1, .08, .16, .02), metal(0xff7a2f, {m: .3, r: .4, e: 0xff5a1f, ei: .6})); hvPort.position.set(x0 + L / 2 + .03, y0 + .1, .2); g.add(hvPort);
-    sys.battery = {g, tray, plate, coolant, modules, busbars, lid, hvPort, L, Wd, x0, y0};
+
+    // 冷却流道：仍是 kit 的发光管（节点用 K.growTube 按进度“铺开”，必须要索引几何）
+    const serp = [];
+    for (let i = 0; i <= 8; i++) {
+      const x = x0 - L / 2 + .12 + i * (L - .24) / 8;
+      serp.push([x, .205, i % 2 ? .55 : -.55], [x + .001, .205, i % 2 ? -.55 : .55]);
+    }
+    const coolant = K.tube(serp, .014, 0x2aa9ff, {glow: true, segs: 220});
+    coolant.name = 'coolant-flow';
+    pack.add(coolant);
+
+    // 母排能量层：同样保持 kit 发光管（B.busbars.forEach(b => K.growTube(b, ...))）
+    const busbars = [.32, -.32].map(z => {
+      const b = K.tube([[-1.02, .352, z], [1.02, .352, z]], .012, COL.orange, {glow: true});
+      pack.add(b);
+      return b;
+    });
+    // 旧包的高压口是橙色小盒；新件是高压连接器总成（含端子/卡扣/警示带）
+    sys.battery = {
+      g, pack, tray: pack.tray, plate: pack.coolantPlate, coolant, modules: pack.modules,
+      busbars, lid: pack.lid, hvPort: pack.hvConnector, L, Wd, x0, y0,
+      frame: pack.tray, gasket: pack.gasket, bms: pack.bms, bolts: pack.lidBolts
+    };
   }
   // ---------- 电驱（前后） ----------
   const motor = (x, k) => {
-    const g = new THREE.Group(); g.position.set(x, wr, 0);
-    const housing = new THREE.Mesh(new THREE.CylinderGeometry(.15, .15, .34, 32), metal(0x8796a3, {m: .75, r: .3})); housing.rotation.x = Math.PI / 2; g.add(housing);
-    const ring1 = K.ring(.155, COL.cyan, .008); ring1.position.z = .1; g.add(ring1);
-    const ring2 = K.ring(.155, COL.cyan, .008); ring2.position.z = -.1; g.add(ring2);
-    const gear = new THREE.Mesh(K.rbox(.26, .26, .2, .04), metal(0x6b7a87, {m: .7, r: .35})); gear.position.set(k * .1, -.02, -.25); g.add(gear);
-    const inv = new THREE.Mesh(K.rbox(.3, .1, .3, .03), metal(0x404f5c, {m: .6, r: .4, e: 0x1b5c7a, ei: .3})); inv.position.set(0, .2, .05); g.add(inv);
-    const shafts = [-1, 1].map(s => { const sh = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, track - .2, 12), metal(0xa9b5bf, {m: .9, r: .25})); sh.rotation.x = Math.PI / 2; sh.position.z = s * (track / 2 + .05); g.add(sh); return sh; });
-    return {g, housing, inv, gear, shafts, rings: [ring1, ring2]};
+    const g2 = new THREE.Group(); g2.name = 'motor'; g2.position.set(x, wr, 0);
+    const unit = parts.build('driveUnit');
+    g2.add(unit);
+    // 旧件的青色光环（工序里会跟着车轮转）：保留，作为电机端面的能量环
+    const rings = [-1, 1].map(s => { const r = K.ring(.155, COL.cyan, .008); r.position.z = s * .10; g2.add(r); return r; });
+    return {
+      g: g2, part: unit, housing: unit.housing, inv: unit.inverter, gear: unit.gearbox,
+      shafts: unit.shafts, rings, boots: unit.boots, fins: unit.fins
+    };
   };
-  { const g = W('drive'); sys.rear = motor(xR, 1); sys.front = motor(xF, -1); sys.front.g.scale.setScalar(.85); g.add(sys.rear.g, sys.front.g); sys.drive = {g}; }
+  {
+    const g = W('drive');
+    sys.rear = motor(xR, 1);
+    sys.front = motor(xF, -1);
+    sys.front.g.scale.setScalar(.85);
+    g.add(sys.rear.g, sys.front.g);
+    sys.drive = {g};
+  }
   // ---------- 热管理 ----------
   {
     const g = W('thermal');
@@ -71,9 +126,20 @@ export function createSystems(K, car) {
   // ---------- 电子电气：中央计算 + 区域控制器 + 线束 + 传感器 ----------
   {
     const g = W('eea');
-    const ecu = (p, s = 1, c = COL.cyan) => { const n = new THREE.Group(); n.position.set(...p); const b = new THREE.Mesh(K.rbox(.16 * s, .06 * s, .12 * s, .015), metal(0x24313c, {m: .4, r: .5})); const led = K.glow(new THREE.BoxGeometry(.13 * s, .008, .09 * s), c, 2.4, .9); led.position.y = .034 * s; n.add(b, led); n.userData.led = led; g.add(n); return n; };
+    // 旧件是“盒子 + 一条发光条”；新件是带散热鳍片、两排真针脚、密封胶条与铭牌的控制器。
+    // 中央域控用全细节，四个区域控制器用 lod='lo'（远景、数量多）。
+    const ecu = (p, s = 1, c = COL.cyan, lod = null) => {
+      const n = new THREE.Group(); n.position.set(...p);
+      const unit = parts.build('ecu', lod === 'lo' ? {lod: 'lo'} : {});
+      unit.scale.setScalar(s * .9);   // 旧盒 160×60×120mm，新件 180×120×40mm，缩到与旧包围盒一致
+      n.add(unit);
+      n.userData.unit = unit;
+      n.userData.accent = c;
+      if (unit.leds && unit.leds[0]) unit.leds[0].material.color.set(c).multiplyScalar(2.2);
+      g.add(n); return n;
+    };
     const central = ecu([.35, .5, 0], 1.6, COL.violet);
-    const zones = [ecu([1.7, .62, .4]), ecu([1.7, .62, -.4]), ecu([-1.75, .66, .35]), ecu([-1.75, .66, -.35])];
+    const zones = [ecu([1.7, .62, .4], 1, COL.cyan, 'lo'), ecu([1.7, .62, -.4], 1, COL.cyan, 'lo'), ecu([-1.75, .66, .35], 1, COL.cyan, 'lo'), ecu([-1.75, .66, -.35], 1, COL.cyan, 'lo')];
     const P = {
       camF: [.95, 1.15, 0], radarF: [2.32, .47, 0], radarFL: [2.12, .5, .72], radarFR: [2.12, .5, -.72], radarRL: [-2.18, .52, .72], radarRR: [-2.18, .52, -.72],
       camL: [.15, .98, .93], camR: [.15, .98, -.93], camB: [-2.27, .86, 0], lidar: [.72, 1.36, 0], antenna: [-.85, 1.4, 0], screen: [.72, .98, 0]
@@ -103,59 +169,69 @@ export function createSystems(K, car) {
   // ---------- 座舱：座椅、方向盘、仪表板 ----------
   {
     const g = W('cabin');
-    const seatMat = () => metal(0x3a4652, {m: .1, r: .7});
-    const seat = (x, z, w = .5) => { const s = new THREE.Group(); s.position.set(x, .36, z); const cush = new THREE.Mesh(K.rbox(.5, .1, w, .04), seatMat()); cush.position.set(0, .05, 0); const back = new THREE.Mesh(K.rbox(.1, .62, w, .04), seatMat()); back.position.set(-.27, .36, 0); back.rotation.z = .2; const head = new THREE.Mesh(K.rbox(.08, .16, w * .5, .03), seatMat()); head.position.set(-.36, .74, 0); head.rotation.z = .2; const rail = new THREE.Mesh(new THREE.BoxGeometry(.5, .03, .04), metal(0x8a97a1)); rail.position.set(0, -.05, w * .3); const rail2 = rail.clone(); rail2.position.z = -w * .3; s.add(cush, back, head, rail, rail2); g.add(s); return s; };
-    const seats = [seat(.08, .37), seat(.08, -.37), seat(-.86, 0, 1.25)];
-    const dash = new THREE.Mesh(K.rbox(.32, .2, 1.36, .05), metal(0x2c3640, {m: .2, r: .6})); dash.position.set(.88, .78, 0); g.add(dash);
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(.17, .02, 10, 40), metal(0x1d252c, {m: .2, r: .5})); wheel.position.set(.55, .9, -.37); wheel.rotation.y = Math.PI / 2; wheel.rotation.x = 0; wheel.rotateX(.0); wheel.rotateY(0); wheel.rotation.z = 0; g.add(wheel); wheel.rotation.set(0, Math.PI / 2, 0); wheel.rotateX(-.35);
+    // 座椅：旧件 3 个（前两张桶椅 + 后排一张连体），原点在安装面 y=.36，包围盒 .36~1.18m。
+    // 新座椅按地面 y=0 建模、总高 .875m，等比缩到 .937 后正好落在旧包围盒里。
+    const seat = (x, z, wide = false) => {
+      const s = parts.build('seat');
+      s.position.set(x, .36, z);
+      s.scale.setScalar(.937);
+      if (wide) s.scale.z = .937 * 1.95;         // 后排：旧件是 1.25m 连体坐垫
+      s.rotation.y = Math.PI;                    // 旧件朝 +x，部件库朝 +x 是“坐垫前沿”，这里统一朝车头
+      g.add(s); return s;
+    };
+    const seats = [seat(.08, .37), seat(.08, -.37), seat(-.86, 0, true)];
+    // 仪表板：旧件是一整块圆角盒；这里拆成上本体 + 下部软质护板 + 出风口 + 屏幕边框（分材质，不再是单色块）
+    const dash = new THREE.Group(); dash.name = 'dash'; g.add(dash);
+    const dashMain = K.solid(K.rbox(.32, .15, 1.36, .05), 0x2c3640, {tier: 'shell'}); dashMain.position.set(.88, .79, 0); dash.add(dashMain);
+    const dashLower = K.solid(K.rbox(.26, .10, 1.28, .04), 0x1b2329, {tier: 'plastic'}); dashLower.position.set(.84, .70, 0); dash.add(dashLower);
+    for (const s of [-1, 1]) {
+      const vent = K.solid(K.rbox(.03, .045, .18, .012), 0x11161a, {tier: 'rubber'}); vent.position.set(.86, .80, s * .42); dash.add(vent);
+      for (let i = 0; i < 3; i++) { const slat = K.solid(new THREE.BoxGeometry(.02, .004, .16), 0x39434b, {tier: 'machined'}); slat.position.set(.855, .785 + i * .014, s * .42); dash.add(slat); }
+    }
+    const dashTrim = K.solid(K.rbox(.012, .012, 1.24, .004), 0x8f9aa3, {tier: 'machined', edge: .3}); dashTrim.position.set(1.03, .84, 0); dash.add(dashTrim);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(.17, .02, 10, 40), metal(0x1d252c, {m: .2, r: .5})); wheel.position.set(.55, .9, -.37); wheel.rotation.y = Math.PI / 2; g.add(wheel); wheel.rotation.set(0, Math.PI / 2, 0); wheel.rotateX(-.35);
     const disp = K.panel(.24, .15, COL.cyan, .35); disp.position.set(.82, .98, 0); disp.rotation.set(0, Math.PI / 2, 0); disp.rotateX(-.3); g.add(disp);
     sys.cabin = {g, seats, dash, wheel, disp};
   }
   // ---------- 白车身骨架 ----------
   {
     const g = W('biw');
-    const T = car.topAt;
-    const z0 = .76, zr = .6, ys = .3;
-    const xs = [1.0, .45, -.05, -.75, -1.55];
-    const yA = T(xs[1]).roof - .03, yC = T(xs[3]).roof - .04;
-    const beams = [];
-    const beam = (pts, r = .028, c = 0x9fb3c2) => { const t = K.tube(pts, r, c, {metal: .7, segs: 40}); g.add(t); beams.push(t); return t; };
-    for (const s of [1, -1]) {
-      beam([[1.85, ys + .05, s * .7], [1.2, ys, s * z0], [-1.1, ys, s * z0], [-1.75, ys + .08, s * .72]], .035); // 门槛
-      beam([[1.0, .9, s * .76], [.72, 1.12, s * .68], [xs[1], yA, s * zr]]); // A 柱
-      beam([[xs[1], yA, s * zr], [-.2, T(-.2).roof - .02, s * (zr - .02)], [xs[3], yC, s * zr]]); // 顶边梁
-      beam([[xs[2], ys, s * z0], [xs[2], .7, s * .8], [xs[2] - .02, T(xs[2]).roof - .03, s * (zr + .02)]], .032); // B 柱
-      beam([[xs[3], yC, s * zr], [-1.2, 1.1, s * .66], [xs[4], .9, s * .74]]); // C 柱
-      beam([[1.85, ys + .05, s * .7], [1.0, .9, s * .76]], .026); // 前门框下段
-      beam([[2.25, .48, s * .42], [1.6, .42, s * .45], [1.2, ys + .02, s * .5]], .03); // 前纵梁
-      beam([[-2.25, .5, s * .45], [-1.7, .45, s * .5], [-1.2, ys + .02, s * .55]], .03); // 后纵梁
-    }
-    for (const x of [1.2, .45, -.05, -.6, -1.2]) beam([[x, ys, z0], [x, ys - .03, 0], [x, ys, -z0]], .025);
-    beam([[xs[1], yA, zr], [xs[1] + .02, yA + .03, 0], [xs[1], yA, -zr]], .022); beam([[xs[3], yC, zr], [xs[3], yC + .02, 0], [xs[3], yC, -zr]], .022); beam([[-.1, T(-.1).roof - .02, zr - .02], [-.1, T(-.1).roof, 0], [-.1, T(-.1).roof - .02, -zr + .02]], .02);
-    beam([[2.28, .5, .72], [2.33, .5, 0], [2.28, .5, -.72]], .035, 0xb9c6cf); beam([[-2.28, .52, .72], [-2.32, .52, 0], [-2.28, .52, -.72]], .035, 0xb9c6cf);
-    beam([[1.0, .9, .76], [1.05, .95, 0], [1.0, .9, -.76]], .03);
-    // 连接点（焊点）
+    // 旧件是 27 根 kit 圆管；新件是 41 根按真实冲压截面扫掠的梁（帽形/C 型槽/矩形/椭圆管）：
+    // 门槛、A/B/C 柱、顶边梁、前后纵梁、地板横梁、顶盖横梁、门洞框、铰链柱、后轮罩、减震塔撑杆、防撞梁。
+    const bp = parts.build('biw', {car});
+    g.add(bp);
+    const beams = bp.beams.slice();
+    beams.forEach(growable);          // 工序用 K.growTube 沿梁“画出来”，需要索引
+    // 焊点：旧件按每根梁两端各一个；新件沿用同一规则（取每根梁的路径端点），取前 24 根避免糊成一片
     const joints = [];
-    beams.forEach(b => { const c = b.userData.curve; [0, 1].forEach(u => { const p = c.getPointAt(u); const j = K.glow(new THREE.SphereGeometry(.03, 10, 8), COL.amber, 2.6, .95); j.position.copy(p); g.add(j); joints.push(j); }); });
-    sys.biw = {g, beams, joints};
+    const jgeo = new THREE.SphereGeometry(.03, 6, 4);
+    for (let i = 0; i < Math.min(beams.length, 24); i++) {
+      const path = beams[i].userData.path;
+      if (!path) continue;
+      for (const p of [path[0], path[path.length - 1]]) {
+        const j = K.glow(jgeo, COL.amber, 2.6, .95);
+        j.position.set(p[0], p[1], p[2]);
+        g.add(j); joints.push(j);
+      }
+    }
+    sys.biw = {g, beams, joints, part: bp, towers: bp.towers, firewall: bp.firewall, floorPan: bp.floorPan};
   }
-  // ---------- 悬架 ----------
+  // ---------- 悬架 / 制动 / 转向 ----------
   {
     const g = W('chassis');
-    const parts = [];
-    wc.forEach((c, i) => {
-      const s = Math.sign(c.z), x = c.x;
-      const helix = []; for (let k = 0; k <= 64; k++) { const a = k / 64 * Math.PI * 2 * 6; helix.push([x + Math.cos(a) * .06, .42 + k / 64 * .3, s * (track - .2) + Math.sin(a) * .06]); }
-      const spring = K.tube(helix, .009, 0xffc44d, {segs: 300, metal: .5}); g.add(spring);
-      const damper = new THREE.Mesh(new THREE.CylinderGeometry(.022, .022, .42, 12), metal(0xb0bec8, {m: .9, r: .2})); damper.position.set(x, .57, s * (track - .2)); g.add(damper);
-      const armL = K.tube([[x - .18, .3, s * .4], [x, .28, s * (track - .1)], [x + .18, .3, s * .4]], .02, 0x8fa2b0, {segs: 30, metal: .7}); g.add(armL);
-      const knuckle = new THREE.Mesh(K.rbox(.08, .2, .06, .02), metal(0x7a8894)); knuckle.position.set(x, wr, s * (track - .14)); g.add(knuckle);
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, .025, 32), metal(0x9aa4ab, {m: .9, r: .3})); disc.rotation.x = Math.PI / 2; disc.position.set(x, wr, s * (track - .1)); g.add(disc);
-      parts.push({spring, damper, armL, knuckle, disc});
+    // 每个角总成带弹簧、减振器、下摆臂、转向节、通风盘、卡钳；工序会直接推 spring/knuckle/disc 的位置。
+    const partsList = wc.map((c, i) => {
+      const isRear = i >= 2;
+      const s = parts.build('suspension', isRear ? {} : {lod: 'lo'});
+      s.position.set(c.x, c.y, c.z);
+      s.rotation.y = c.z < 0 ? Math.PI : 0;   // -z 侧镜像到车外
+      s.userData.corner = i;
+      g.add(s);
+      return Object.assign(s, {armL: s.arm});   // 旧字段名兼容
     });
     const rack = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.0, 12), metal(0x9fb0bd)); rack.rotation.x = Math.PI / 2; rack.position.set(xF - .15, .38, 0); g.add(rack);
     const sub = K.tube([[xF + .2, .3, .45], [xF - .3, .28, .45], [xF - .3, .28, -.45], [xF + .2, .3, -.45]], .025, 0x7d8e9b, {segs: 40, metal: .7}); g.add(sub);
-    sys.chassis = {g, parts, rack, sub};
+    sys.chassis = {g, parts: partsList, rack, sub};
   }
   // ---------- 乘员包络（抽象测量假人，只用于空间检查） ----------
   {
@@ -182,6 +258,7 @@ export function createSystems(K, car) {
   Object.keys(groups).forEach(k => { vis[k] = 0; op(groups[k], 0); });
   return Object.assign(sys, {
     groups,
+    partsLib: parts,
     reset() { sys.battery.modules.forEach(m => m.userData.top.material.color.copy(m.userData.topCol)); for (const [o, p, r, s] of inits) { o.position.copy(p); o.rotation.copy(r); o.scale.copy(s); if (o !== root && !groupSet.has(o)) o.visible = true; } Object.keys(vis).forEach(k => vis[k] = 0); subs.length = 0; Object.values(sys.eea.fans).forEach(f => subs.push([f, 0])); },
     // 单独调某个子件的透明度（乘以所在系统的透明度）
     sub(obj, o) { subs.push([obj, o]); },

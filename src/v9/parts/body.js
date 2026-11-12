@@ -24,6 +24,7 @@ export function buildBiw(ctx, opts = {}) {
   const beam = (name, pts, profile, {segments = 18, scaleAt = null, mat = matShell} = {}) => {
     const m = mesh(G.sweep(pts, profile, {segments, scaleAt, caps: true}), mat, name);
     m.userData.role = name;
+    m.userData.path = pts.map(p => p.slice());   // 端点给焊点/接头定位，也方便工序沿梁增长
     beams.push(m);
     return m;
   };
@@ -123,8 +124,33 @@ export function buildBiw(ctx, opts = {}) {
   const impactBars = [];
   for (const s of [-1, 1]) {
     const b = mesh(G.sweep([[.95, .55, s * .74], [-.05, .52, s * .76], [-.95, .55, s * .74]], G.SECT.oval(.05, .035, 8), {segments: 10}), matHot, `impact-bar-${s > 0 ? 'L' : 'R'}`);
+    b.userData.role = 'impact-bar';
+    b.userData.path = [[.95, .55, s * .74], [-.05, .52, s * .76], [-.95, .55, s * .74]];
     impactBars.push(b);
+    beams.push(b);
   }
+
+  // ---------- 门洞框 / 铰链柱 / 后轮罩 / 撑杆 / 座椅横梁（把骨架补成完整的承载环）----------
+  for (const s of [-1, 1]) {
+    // 前门洞上框（A 柱上端 → B 柱上端）
+    beam(`front-door-frame-top-${s > 0 ? 'L' : 'R'}`, [[xs[1], yA, s * zr], [-.10, roofAt(-.10) - .035, s * (zr + .005)], [xs[2], .78, s * .785]], G.SECT.rect(.052, .042), {segments: 12, mat: matStamped});
+    // 前门洞下框（门槛 → B 柱下端）
+    beam(`front-door-frame-bottom-${s > 0 ? 'L' : 'R'}`, [[1.02, .335, s * .755], [.2, .315, s * .755], [xs[2], .34, s * .74]], G.SECT.rect(.04, .03), {segments: 10, mat: matStamped});
+    // 后门洞框（B 柱 → C 柱）
+    beam(`rear-door-frame-${s > 0 ? 'L' : 'R'}`, [[xs[2], .78, s * .785], [-.95, .80, s * .715], [xs[3], yC - .06, s * zr]], G.SECT.rect(.048, .038), {segments: 12, mat: matStamped});
+    // 铰链柱（A 柱内侧，门铰链的安装面）
+    beam(`hinge-pillar-${s > 0 ? 'L' : 'R'}`, [[1.00, .40, s * .72], [1.00, .62, s * .735], [.94, .88, s * .745]], G.SECT.channel(.05, .04, .0016), {segments: 8, mat: matHot});
+    // 后轮罩内板（后纵梁 → C 柱）
+    beam(`rear-wheelhouse-${s > 0 ? 'L' : 'R'}`, [[-1.55, .42, s * .60], [-1.85, .52, s * .68], [-2.10, .58, s * .66]], G.SECT.channel(.09, .07, .0016), {segments: 10, mat: matStamped});
+    // 前减震塔撑杆（塔顶 → 前围）
+    beam(`strut-brace-${s > 0 ? 'L' : 'R'}`, [[1.32, .61, s * .52], [1.18, .72, s * .30], [1.04, .78, s * .12]], G.SECT.rect(.03, .026), {segments: 8, mat: matHot});
+  }
+  // 座椅前横梁 + 后横梁（地板承载）
+  for (const [x, nm] of [[.32, 'seat-cross-front'], [-.52, 'seat-cross-rear']]) {
+    beam(nm, [[x, .305, z0 - .05], [x, .30, 0], [x, .305, -(z0 - .05)]], G.SECT.rect(.05, .04), {segments: 8, mat: matStamped});
+  }
+  // 顶盖前横梁（风窗前梁）
+  beam('roof-header', [[.82, 1.20, zr - .02], [.84, 1.25, 0], [.82, 1.20, -(zr - .02)]], G.SECT.rect(.05, .035), {segments: 10, mat: matStamped});
 
   // ---------- 接头加强板（gusset）：梁柱交接处的三角板 ----------
   const joints = [];

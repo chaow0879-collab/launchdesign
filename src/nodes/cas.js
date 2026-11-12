@@ -69,8 +69,9 @@ export const cas1 = {
     const center = P.net.userData.dots[22].userData.home;
     if (nk > 0) {
       P.net.userData.dots.forEach((d, i) => { const dd = d.userData.home.distanceTo(center); const w = Math.exp(-dd * dd / .5); d.position.y += .18 * pull * w; if (i === 22) d.scale.setScalar(1.8); });
+      car.setDeformScale(.2); car.setDeformFollow(true);          // 漆面/油泥跟随同一个 uDeform，控制点拉动时曲面真的鼓起来
       cad(car, 1, {center: [center.x, center.y - .04, center.z], radius: .6, amount: 2.2 * pull, lit: .9 * nk});
-    }
+    } else { car.setDeformScale(.08); car.setDeformFollow(false); }   // 其余镜头回到原系数与关闭状态，行为不变
     P.net.userData.refresh();
     // 5 接缝与边界
     P.seams.forEach((l, i) => { op(l, c.show(4, 0, 5, 0)); K.drawLine(l, stagger(c.p(4, 0, 4, 1), i, 3)); });

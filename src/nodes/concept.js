@@ -162,13 +162,24 @@ export const concept2 = {
     op(P.leg, c.show(1, .3, 2, 0)); op(P.view, c.show(1, .5, 2, 0)); P.view.material.uniforms.uT.value = t;
     op(P.reach, c.show(1, .7, 2, 0)); K.drawLine(P.reach, c.p(1, .7, 1, 1));
     op(P.ingress, c.show(1, 1, 2, 0)); K.drawLine(P.ingress, c.p(1, 1, 1, 'end')); op(P.door, c.show(1, 1.2, 2, 0) * .9); P.door.scale.setScalar(c.p(1, 1.2, 1, 'end'));
-    // 3 电池进入
+    // 3 电池进入：先沿 z 滑到车下，再上抬，在地板接触点被 stopAt 停住（之后 u 不再前进，不穿进车身）
     S.show('battery', c.show(2, 0));
-    const inK = c.p(2, 0, 2, .9); S.battery.g.position.x = lerp(3.4, 0, inK);
+    const B = S.battery;
+    // solver 不挂进场景：B.g 必须留在 sysRoot 下，S.show/op 依赖 groups.battery 的层级
+    P.slide = P.slide || (() => {
+      const pts = [[3.4, -.34, 0], [1.6, -.34, 0], [.4, -.34, 0], [.18, -.12, 0], [0, 0, 0], [0, .16, 0]];
+      const curve = K.curve(pts), target = new THREE.Vector3(0, 0, 0);
+      let best = 1, bestD = Infinity;
+      for (let i = 0; i <= 96; i++) { const u = i / 96, p = curve.getPointAt(u), d = p.distanceTo(target); if (d < bestD) { bestD = d; best = u; } }
+      return K.stopAt(new THREE.Group(), curve, best);       // best ≈ 地板接触点所在弧长参数
+    })();
+    const inK = c.p(2, 0, 2, .9);
+    P.slide.userData.travel(inK); B.g.position.copy(P.slide.children[0].position);
     op(P.thick, c.show(2, 1, 3, 0)); op(P.capI, c.show(2, 1.3, 3, 0)); S.battery.modules.forEach((m, i) => op(m.userData.top, .3 + .7 * c.pulse(2, 1.3 + i * .04, .8)));
     op(P.shield, c.show(2, 1.6, 3, 0)); P.impact.forEach((a, i) => { op(a, c.show(2, 1.6, 3, 0) * .9); a.position.y = -.25 + .08 * ((t * 2 + i * .3) % 1); });
-    const raise = c.p(2, 2, 2, 'end');
-    [S.occupant.front, S.occupant.front2, S.occupant.rear].forEach(o => o.position.y += .05 * raise); S.cabin.seats.forEach(s => s.position.y += .05 * raise);
+    // 乘员/座椅抬高量由电池上表面高度推导（B.y0 + .06），且电池就位后才开始抬
+    const topY = B.y0 + .06, raise = c.p(2, 2, 2, 'end') * clamp(inK * 2);
+    [S.occupant.front, S.occupant.front2, S.occupant.rear].forEach(o => o.position.y += topY * raise); S.cabin.seats.forEach(s => s.position.y += topY * raise);
     op(P.roof, c.show(2, 2, 3, 0)); K.drawLine(P.roof, raise);
     // 4 电驱与底盘
     S.show('drive', c.show(3, 0)); S.show('chassis', c.show(3, 0) * .9);
