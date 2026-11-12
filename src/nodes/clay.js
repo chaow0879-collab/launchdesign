@@ -137,6 +137,11 @@ export const clay2 = {
     P.tool = K.add(new THREE.Group());
     const blade = K.solid(new THREE.BoxGeometry(.16, .01, .05), 0xd7dee4, {metal: .9, rough: .2}); const handle = K.solid(new THREE.CylinderGeometry(.018, .02, .38, 12), 0x3a2a1e, {metal: .1, rough: .7}); handle.position.y = .2; handle.rotation.z = .3;
     const tipG = K.glow(new THREE.SphereGeometry(.025, 10, 8), COL.amber, 3); P.tool.add(blade, handle, tipG);
+    // 刀刃与曲面之间恒定的间隙：刀口两端各采一次 heightAt，刀身绕 z 跟着切向摆；这根小竖线的长度就是间隙本身
+    P.gapTick = K.line([[0, -.005, 0], [0, -.014, 0]], COL.amber, .95); P.tool.add(P.gapTick);
+    // 刮过的区域亮起来：沿刀路铺一条贴合曲面的亮带，随刀刃进度显出（不是整块淡入）
+    P.burnPts = (() => { const o = []; for (let j = 0; j < 7; j++) { const z = cz - .21 + j * .07, row = []; for (let x = cx - .35; x <= cx + .351; x += .03) row.push([x, car.heightAt(x, z) + .007, z]); o.push(...(j % 2 ? row.reverse() : row)); } return o; })();
+    P.burn = K.add(K.tube(P.burnPts, .009, COL.white, {glow: true, segs: 300}));
     P.strokes = Array.from({length: 7}, (_, i) => { const z = cz - .21 + i * .07; const pts = []; for (let x = cx - .35; x <= cx + .35; x += .05) pts.push([x, car.heightAt(x, z) + .012, z]); return K.add(K.line(pts, COL.amber, .8)); });
     P.comb = K.add(K.line(section(car, cx).map(p => [p[0] + .002, p[1] + .02, p[2]]), COL.white, .8));
     P.curv = curvComb(K, section(car, cx).map(p => [p[0], p[1] + .02, p[2]]), COL.amber, .3);
@@ -156,11 +161,13 @@ export const clay2 = {
     const t = c.t, [cx, cy, cz] = P.cen;
     car.set('paint', 0); car.set('clay', 1);
     op(P.zone, c.show(0, .6, 3, 0) * (.7 + .3 * Math.sin(t * 3))); P.zone.scale.setScalar(1 + .5 * c.p(2, 0, 2, 1));
-    // 工具运动
-    const app = c.p(0, 0, 0, 1.2);
+    // 工具运动：刀刃沿刮削路线推进，刀口两端各采一次车面高度 → 刀身跟着切向摆，刃口与曲面间隙恒定
+    const app = c.p(0, 0, 0, 1.2), bladeK = c.lin(1, 0, 2, 'end');
     let x = cx, z = cz, lift = .6 * (1 - app);
-    if (c.between(1, 0, 3, 0)) { const ph = (t - c.T(1, 0)) * 1.8; x = cx + .3 * Math.sin(ph); z = cz + (c.after(2, 0) ? .2 * Math.sin(ph * .23) : 0); lift = .01; }
-    op(P.tool, c.show(0, 0, 3, 0)); setP(P.tool, [x, car.heightAt(x, z) + .02 + lift, z]); P.tool.rotation.y = .4;
+    if (c.between(1, 0, 3, 0)) { const bp = P.burnPts[Math.min(P.burnPts.length - 1, Math.floor(bladeK * P.burnPts.length))]; x = bp[0]; z = bp[2]; lift = 0; }
+    const e0 = car.heightAt(x - .08, z), e1 = car.heightAt(x + .08, z), tilt = Math.atan2(e1 - e0, .16);
+    op(P.tool, c.show(0, 0, 3, 0)); setP(P.tool, [x, (e0 + e1) / 2 + .014 + lift, z]); P.tool.rotation.set(0, .4, tilt);
+    op(P.burn, c.show(1, .2, 3, .3)); K.growTube(P.burn, bladeK);        // 刮过的区域跟着刀刃亮起来
     op(P.comb, c.show(1, 1, 2, 1)); op(P.curv, c.show(1, .7, 2, 1));
     P.strokes.forEach((l, i) => { op(l, c.show(2, 0, 3, .5) * stagger(c.p(2, 0, 2, 'end'), i, 7)); });
     // 4 共同调整
@@ -217,11 +224,13 @@ export const clay3 = {
     P.targets.forEach((h, i) => op(h, c.show(0, .6, 4, 0) * stagger(c.p(0, .6, 0, 1.6), i, 4)));
     P.axes.forEach(a => { op(a, c.show(0, 1.2, 4, 0)); K.growTube(a, c.p(0, 1.2, 0, 1.8)); });
     P.links.forEach((l, i) => { op(l, c.show(0, 1.6, 1, 0)); K.drawLine(l, c.p(0, 1.6, 0, 'end')); });
-    // 2 采集
-    const sw = c.lin(1, 0, 1, 'end'), sx = lerp(2.5, -2.5, sw);
+    // 2 采集：扫描臂沿车长方向跟着光幕走，点云按扫描进度逐段出现（reveal 只放已扫过的段落，不整块淡入）
+    const sw = c.lin(1, 0, 1, 'end'), sx = lerp(2.5, -2.5, sw), seg = Math.floor(sw * 16) / 16;
     op(P.sheet, c.show(1, 0, 1, 2.6)); op(P.sheetEdge, c.show(1, 0, 1, 2.6)); P.sheet.position.set(sx, .8, 0); P.sheetEdge.position.set(sx, .8, 0);
-    if (c.between(1, 0, 3, 0)) P.arm.userData.reach([sx, 1.5, .7]);
-    car.set('points', c.show(1, 0, 5, 1)); car.ptsMat.uniforms.uReveal.value = c.after(2, 0) ? 10 : -sx;
+    const scanOn = c.between(1, 0, 3, 0);
+    P.arm.position.x = scanOn ? clamp(sx * .6, -1.4, 1.4) : 0;
+    if (scanOn) P.arm.userData.reach([sx, 1.45, .75]);
+    car.set('points', c.after(1, 0) ? 1 : 0); car.ptsMat.uniforms.uReveal.value = c.after(2, 0) ? 10 : -lerp(2.5, -2.5, seg);
     // 4 配准
     const off = c.show(3, 0, 5, 1);
     if (off > 0) { const k = c.p(3, .6, 3, 'end'); cad(car, .55 * off); car.body.position.set(0, 0, 0); car.layers.heat.group.position.set(.5 * (1 - k), .25 * (1 - k), -.4 * (1 - k)); car.layers.heat.group.rotation.y = .1 * (1 - k); }

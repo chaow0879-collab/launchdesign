@@ -109,7 +109,11 @@ export const cas2 = {
     // 前灯内部
     const lp = [2.0, .72, .6];
     P.lens = K.add(K.solid(new THREE.SphereGeometry(.06, 20, 14), 0xbfe8ff, {metal: .1, rough: .05, emissive: COL.white, ei: 1.2})); setP(P.lens, [lp[0] + .02, lp[1], lp[2]]);
-    P.sink = K.add(new THREE.Group()); for (let i = 0; i < 6; i++) { const f = K.solid(new THREE.BoxGeometry(.012, .1, .14), 0x9aa8b3, {metal: .9, rough: .3}); f.position.set(-.08 - i * .025, 0, 0); P.sink.add(f); } setP(P.sink, lp);
+    const sinkG = new THREE.Group(); for (let i = 0; i < 6; i++) { const f = K.solid(new THREE.BoxGeometry(.012, .1, .14), 0x9aa8b3, {metal: .9, rough: .3}); f.position.set(-.08 - i * .025, 0, 0); sinkG.add(f); } setP(sinkG, lp);
+    // 灯组沿 +x 安装路径插进灯腔，抵到安装座就停；越过接触点的进度只换成 5% 轴向压紧，不再前进
+    P.seat = K.add(K.holoBox(.05, .18, .22, COL.green, .14, .9)); setP(P.seat, [1.975, lp[1], lp[2]]);
+    P.ins = K.add(K.stopAt(sinkG, [[-.42, 0, 0], [0, 0, 0]], 1, {squash: .05}));
+    P.sink = P.ins.children[0];
     P.brk = [[lp[0] - .05, lp[1] - .08, lp[2] - .1], [lp[0] - .05, lp[1] - .08, lp[2] + .1]].map(p => { const b = K.add(K.glow(new THREE.CylinderGeometry(.012, .012, .06, 10), COL.amber, 2.2)); setP(b, p); return b; });
     P.beam = K.add(new THREE.Mesh(new THREE.ConeGeometry(.5, 3.2, 32, 1, true), new THREE.MeshBasicMaterial({color: new THREE.Color(0xfff3d6).multiplyScalar(1.3), transparent: true, opacity: .12, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false}))); P.beam.rotation.z = Math.PI / 2; setP(P.beam, [lp[0] + 1.7, lp[1] - .05, lp[2]]);
     P.lampIcons = [['eye', COL.white], ['thermo', COL.amber], ['wrench', COL.cyan]].map(([ic, col], i) => chip(K, ic, col, [lp[0] + .1, lp[1] + .38, lp[2] + (i - 1) * .32], .22));
@@ -120,6 +124,11 @@ export const cas2 = {
     const dm = K.holo(new THREE.ShapeGeometry(shape), COL.cyan, .12, 1); P.door.add(dm);
     P.seal = K.add(K.line([...dpts, dpts[0]].map(([x, y]) => [1.0 + x, .38 + y, .9]), COL.green, .95));
     P.gap = [dim(K, [1.0, .55, .95], [1.0, .55, 1.15], COL.white, .06)];
+    // 铰链行程：门自由边沿圆弧开到限位角（1.62rad ≈ 93°）就被限位块挡住；行程多走的 6% 只换算成 ≤8mm 的让位
+    P.arc = Array.from({length: 25}, (_, i) => { const a = i / 24 * 1.70; return [1.0 - Math.cos(a) * 1.05, .88, .92 + Math.sin(a) * 1.05]; });
+    P.limit = K.add(K.holoBox(.14, .09, .09, COL.green, .22, .95)); setP(P.limit, [1.0515, .88, 1.9687]);
+    P.hinge = K.add(K.stopAt(K.glow(new THREE.SphereGeometry(.03, 12, 8), COL.amber, 3), P.arc, .953, {push: .008, axis: 'y'}));
+    P.arcLine = K.add(K.line(P.arc, COL.cyan, .55));
     // 局部控制点
     P.net = ctrlNet(K, car, 9, 5, COL.cyan);
     P.zone = K.add(K.ring(.45, COL.cyan, .01)); P.zone.rotation.x = -Math.PI / 2;
@@ -136,7 +145,9 @@ export const cas2 = {
     // 2 灯具
     const lamp = c.show(1, 0, 2, .2);
     op(fl.lampF1, Math.max(fl.lampF1.visible ? 1 : 0, lamp)); fl.lampF1.scale.setScalar(1);
-    op(P.lens, c.show(1, .6, 2, .2)); op(P.sink, c.show(1, 1, 2, .2)); P.sink.position.x = 2.0 - .2 * (1 - c.p(1, 1, 1, 1.6));
+    op(P.lens, c.show(1, .6, 2, .2)); op(P.seat, c.show(1, .9, 2, .2));
+    const ins = P.ins.userData.travel(c.p(1, 1.1, 1, 1.9) * 1.05);   // 行程留 5% 余量，被安装座吃掉（压紧）
+    op(P.ins, c.show(1, 1, 2, .2)); P.lens.position.x = P.sink.position.x + .02;
     P.brk.forEach(b => op(b, c.show(1, 1.5, 2, .2)));
     op(P.beam, c.show(1, .8, 2, .2) * (.7 + .3 * Math.sin(t * 3)));
     P.lampIcons.forEach((ic, i) => op(ic, c.show(1, .9 + i * .5, 2, .2)));
@@ -144,7 +155,11 @@ export const cas2 = {
     // 3 门窗
     ['door01', 'door11', 'door21'].forEach((k, i) => { op(fl[k], c.show(2, 0, 3, 0)); K.drawLine(fl[k], stagger(c.p(2, 0, 2, 1), i, 3)); });
     const open = c.p(2, 1, 2, 2) * (1 - c.p(2, 2.6, 2, 'end'));
-    op(P.door, c.show(2, 1, 3, 0)); P.door.rotation.y = -1.0 * open;
+    op(P.door, c.show(2, 1, 3, 0));
+    const hg = P.hinge.userData.travel(open * 1.06);                                  // 越界进度只换成让位，门不再开大
+    P.door.rotation.y = 1.62 * Math.min(1, hg.u / P.hinge.userData.stopU);           // 开到 93° 限位角停住
+    op(P.hinge, c.show(2, 1, 3, 0)); op(P.limit, c.show(2, 1.1, 3, 0));
+    op(P.arcLine, c.show(2, 1.1, 3, 0) * .5); K.drawLine(P.arcLine, c.p(2, 1.1, 2, 2.3));
     op(P.seal, c.show(2, 1.6, 3, 0)); K.drawLine(P.seal, c.p(2, 1.6, 2, 2.2)); op(P.gap[0], c.show(2, 2, 3, 0));
     // 4 局部修形
     const nk = c.show(3, 0, 4, 0); op(P.net, nk);
@@ -188,6 +203,9 @@ export const cas3 = {
     const P = {};
     P.old = car.makeClone(0x7a8ea3); K.add(P.old); setP(P.old, A0.at([0, 0, 0], 0, -2.6)); P.old.userData.home = P.old.position.toArray();
     P.old.traverse(o => { if (o.material && o.userData.isPaint) { o.material.color.set(0x8193a6); o.material.roughness = .55; o.material.clearcoat = 0; } });
+    // 两版差的是尺寸：旧版车身按 95.5% / 96.5% 摆，车头短 10.6cm、车顶低 5cm；两条尺寸线把这个差值量出来
+    P.dimN = dim(K, [2.36 - .106, .78, .55], [2.36, .78, .55], COL.amber, .05);
+    P.dimR = dim(K, [-.2, car.heightAt(-.2, 0) * .965, 0], [-.2, car.heightAt(-.2, 0), 0], COL.amber, .05);
     P.boxes = [[[2.05, .75, 0], [.6, .5, 1.8], COL.amber], [[-.2, 1.3, 0], [1.6, .25, 1.2], COL.violet]].map(([p, s, col]) => { const b = K.add(K.holoBox(...s, col, .06, .9)); setP(b, p); return b; });
     P.req = chip(K, 'doc', COL.white, [2.6, 1.5, .3], .34); P.reqL = link(K, [2.6, 1.35, .3], [2.2, 1.0, .2], COL.white, .05);
     P.axes = [[1, 0, 0, COL.red], [0, 1, 0, COL.green], [0, 0, 1, COL.blue]].map(([x, y, z, col]) => K.add(K.tube([[0, .02, 0], [x * .9, .02 + y * .9, z * .9]], .012, col, {glow: true})));
@@ -205,6 +223,7 @@ export const cas3 = {
     cad(car, 1);
     // 1 两版分开
     op(P.old, c.show(0, 0, 4, 1.5) * (c.after(2, 0) ? .45 : 1));
+    P.old.scale.set(.955, .965, 1);                                   // 旧版车头短 10.6cm、车顶低 5cm：差异真的错位，不靠颜色
     P.boxes.forEach((b, i) => op(b, c.show(0, 1, 2, 0) * stagger(c.p(0, 1, 0, 1.6), i, 2) * (1 + .3 * c.pulse(1, i, 1.2))));
     op(P.req, c.show(0, 1.5, 1, 0)); op(P.reqL, c.show(0, 1.5, 1, 0));
     // 2 颜色差异
@@ -214,7 +233,9 @@ export const cas3 = {
     // 3 对齐
     const mis = c.p(2, 0, 2, .6), align = c.p(2, 1, 2, 'end');
     const h = P.old.userData.home;
-    if (c.after(2, 0)) { setP(P.old, mixV(h, [.18 * (1 - align), .05 * (1 - align), .1 * (1 - align)], mis)); if (align < .5 && mis > .5) { u.uRadius.value = 6; u.uLoad.value = 1; } else if (align >= .5) { u.uRadius.value = .7; } }
+    if (c.after(2, 0)) { setP(P.old, mixV(h, [.32 * (1 - align), .11 * (1 - align), .24 * (1 - align)], mis)); P.old.rotation.y = .07 * (1 - align); if (align < .5 && mis > .5) { u.uRadius.value = 6; u.uLoad.value = 1; } else if (align >= .5) { u.uRadius.value = .7; } }
+    else P.old.rotation.y = 0;
+    op(P.dimN, c.show(1, .6, 3, 0)); op(P.dimR, c.show(1, 1, 3, 0));   // 对齐后只剩这两处真实尺寸差
     P.axes.forEach((a, i) => { op(a, c.show(2, .8, 3, 0)); K.growTube(a, c.p(2, .8, 2, 1.3)); });
     // 4 控制点与影响
     const nk = c.show(3, 0, 4, 0); op(P.net, nk);

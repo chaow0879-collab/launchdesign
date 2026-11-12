@@ -39,14 +39,21 @@ export const classa1 = {
     const t = c.t;
     car.set('paint', 0); cad(car, .0);
     const zb = c.show(0, 0, 5, 1.2);
-    zebra(car, zb, t * 1.4 + (c.after(4, 0) ? 0 : 0), 24);
+    const pullK = c.p(2, 0, 2, 1.2), env = Math.sin(pullK * Math.PI);
+    const win = pullK * (1 - c.p(2, 1.8, 2, 2.6));                 // 拉点窗口：只在拉点期间开形变，2.6 句点前一定收干净
+    zebra(car, zb * (1 - Math.min(1, win * 1.6)), t * 1.4 + (c.after(4, 0) ? 0 : 0), 24);
     op(P.spot, c.show(0, 1, 4, 1) * (.6 + .4 * Math.sin(t * 6))); op(P.spotI, c.show(0, 1.2, 1, 0));
     P.spot.material.color.set(new THREE.Color(c.after(4, 1) ? COL.green : COL.amber).multiplyScalar(2.4));
     op(P.sec, c.show(1, 0, 3, 0)); op(P.comb, c.show(1, .6, 3, 0)); K.drawLine(P.comb, c.p(1, .6, 1, 1.4));
     P.comb.scale.y = 1 - .5 * c.p(2, .5, 2, 1.5);
     const nk = c.show(1, .3, 3, .5); op(P.net, nk);
-    const pull = c.p(2, 0, 2, 1.2), dots = P.net.userData.dots, cen = dots[47].userData.home;
-    dots.forEach(d => { d.position.copy(d.userData.home); const dd = d.userData.home.distanceTo(cen); d.position.y += .06 * Math.sin(pull * Math.PI) * Math.exp(-dd * dd / .2); }); P.net.userData.refresh();
+    const dots = P.net.userData.dots, cen = dots[47].userData.home;
+    dots.forEach(d => { d.position.copy(d.userData.home); const dd = d.userData.home.distanceTo(cen); d.position.y += .10 * env * Math.exp(-dd * dd / .2); }); P.net.userData.refresh();
+    // 拉点要带出曲面：漆面/油泥跟同一组 uDeform 一起鼓（峰值 .2 × .5 = 0.10m），镜头走到下一句之前关掉
+    const u = car.layers.heat.mat.uniforms;
+    car.setDeformScale(win > .01 ? .2 : .08); car.setDeformFollow(win > .01);
+    u.uMode.value = 3; u.uCenter.value.set(cen.x, cen.y, cen.z); u.uRadius.value = .5; u.uDeform.value = .5 * env;
+    car.set('heat', .92 * win);
     P.cont.forEach((r, i) => { const k = c.show(3, 0, 4, 0) * stagger(c.p(3, 0, 3, 1.4), i, 3); op(r, k); op(P.contTag[i], k); });
     ['shoulder1', 'archF1', 'door01'].forEach((k, i) => op(P.fl[k], c.show(3, .3, 4, 0) * .7));
     op(P.ok, c.show(4, 1.2, 5, 1));
@@ -82,6 +89,12 @@ export const classa2 = {
     P.outer = K.add(K.line(outer, COL.white, 1)); P.inner = K.add(K.line(inner, COL.amber, .95));
     P.flange = K.add(K.line([outer[0], [-.05, .3, .84], inner[0]], COL.green, 1));
     P.thick = dim(K, [-.05, .65, .9], [-.05, .65, .83], COL.white, .04);
+    // 间隙检查：两块外板真的分开再合拢——后片沿 x 退开 .12m 再回来，停在被 stopAt 挡住的设计间隙 .05m 上
+    P.panA = K.add(K.holoBox(.46, .56, .02, COL.cyan, .10, .95)); setP(P.panA, [.745, .66, .935]);
+    const panB = K.holo(new THREE.BoxGeometry(.46, .56, .02), COL.cyan, .10, .95); setP(panB, [1.255, .66, .935]);
+    P.panB = K.add(K.stopAt(panB, [[.12, 0, 0], [0, 0, 0]], 1, {squash: .04}));
+    P.gapDim = dim(K, [.975, .66, .97], [1.025, .66, .97], COL.amber, .05);
+    P.gapFill = K.add(K.glow(new THREE.BoxGeometry(1, .54, .004), COL.amber, 2.4, .5)); setP(P.gapFill, [1.0, .66, .945]);
     P.gaps = [[1.0, .7, .935], [-.05, .7, .935], [-1.15, .7, .925]].map(p => K.add(K.ring(.05, COL.green, .006))).map((r, i) => { setP(r, [[1.0, .7, .94], [-.05, .7, .94], [-1.15, .7, .93]][i]); return r; });
     P.stack = [COL.teal, COL.violet, COL.amber, COL.pink].map((col, i) => { const b = K.add(K.holoBox(.18, .05, .08, col, .4, 1)); setP(b, [1.3, 1.25 + i * .07, 1.05]); return b; });
     P.flush = dim(K, [1.0, .55, .94], [1.0, .55, .99], COL.amber, .05);
@@ -101,7 +114,14 @@ export const classa2 = {
     const cut = c.show(1, 0, 2, .2);
     if (cut > 0) car.clip([1, 0, 0], .05);
     op(P.outer, cut); op(P.inner, c.show(1, .4, 2, .2)); op(P.flange, c.show(1, .9, 2, .2)); K.drawLine(P.flange, c.p(1, .9, 1, 1.5)); op(P.thick, c.show(1, .6, 2, .2));
-    // 3 间隙面差 + 公差累加
+    // 3 间隙面差：两块外板先分开 .12m 再合拢，缝宽由 stopAt 卡在设计间隙上（真的分开、真的合拢，不是淡入）
+    const openK = c.p(2, 0, 2, .9), shutK = c.p(2, 1.2, 2, 2.1);
+    const sep = 1 - openK * (1 - shutK);                              // 1 贴合 → 0 分开到最大 → 1 再合拢
+    const gb = P.panB.userData.travel(sep * 1.04), bch = P.panB.children[0];
+    const gw = Math.max(.005, bch.position.x - .23 * bch.scale.x - .975);   // 当前缝宽（合拢后 = 设计间隙 .05）
+    op(P.panA, c.show(1, .6, 3, .8)); op(P.panB, c.show(1, .6, 3, .8));
+    op(P.gapFill, c.show(2, 0, 3, 1) * (.55 + .45 * (1 - gb.over))); P.gapFill.scale.x = gw; P.gapFill.position.x = .975 + gw / 2;
+    op(P.gapDim, c.show(2, 1.2, 3, 1));
     P.gaps.forEach((r, i) => { op(r, c.show(2, 0, 3, 1) * stagger(c.p(2, 0, 2, 1), i, 3)); r.rotation.y = Math.PI / 2; });
     op(P.flush, c.show(2, .6, 3, 0));
     P.stack.forEach((b, i) => { const k = stagger(c.p(2, 1, 2, 'end'), i, 4); op(b, c.show(2, 1, 3, 0) * k); b.position.y += .4 * (1 - k); });
@@ -141,6 +161,10 @@ export const classa3 = {
     P.fl = featureLines(K, car, COL.green);
     P.axes = [[1, 0, 0, COL.red], [0, 1, 0, COL.green], [0, 0, 1, COL.blue]].map(([x, y, z, col]) => K.add(K.tube([[0, .02, 0], [x * 1.0, .02 + y * 1.0, z * 1.0]], .012, col, {glow: true})));
     P.issues = [[1.0, .95, .85], [-.4, 1.38, .3], [-1.8, .9, .7]].map(p => ({h: hardpoint(K, p, COL.amber, .045), b: chip(K, 'search', COL.amber, [p[0], p[1] + .32, p[2]], .24)}));
+    // 已完成区：地面托盘 + 3 个槽位；问题工单飞到槽位上被 stopAt 挡住落位（不是淡出）
+    P.tray = K.add(K.holoBox(1.5, .02, .56, COL.green, .12, .7)); setP(P.tray, [1.2, .03, 1.5]);
+    P.slots = [0, 1, 2].map(i => { const r = K.add(K.ring(.11, COL.green, .008)); r.rotation.x = -Math.PI / 2; setP(r, [.9 + i * .3, .05, 1.5]); return r; });
+    P.pins = P.issues.map((s, i) => { const p = s.h.position.toArray(), q = [.9 + i * .3, .17, 1.5]; return K.add(K.stopAt(K.group(s.h, s.b), [[0, 0, 0], [(q[0] - p[0]) / 2, .55, (q[2] - p[2]) / 2], [q[0] - p[0], q[1] - p[1], q[2] - p[2]]], 1, {push: .004, axis: 'y'})); });
     // 片区状态：3 片已确认（check），2 片还要看（warn），让"命名/修改状态"有对象可落
     P.zst = [[1.95, .92, .55, 'check', COL.green], [.9, 1.42, 0, 'check', COL.green], [-.9, 1.44, 0, 'warn', COL.amber], [-2.1, .92, .5, 'check', COL.green], [-1.05, .58, .86, 'warn', COL.amber]].map(([x, y, z, ic, col]) => chip(K, ic, col, [x, y, z], .24));
     P.doc = docStack(K, 5, COL.white, .4, .52); setP(P.doc, axes(30).at([0, .02, 0], 3.0, -.4));
@@ -160,7 +184,15 @@ export const classa3 = {
     car.layers.heat.group.scale.setScalar(1); car.layers.heat.group.position.y = .25 * ex;
     car.set('edges', .4 * zones);
     P.zst.forEach((b, i) => op(b, zones * stagger(c.p(0, .2, 0, 'end'), i, 5) * c.out(3, 0, .6)));
-    P.issues.forEach((s, i) => { const k = c.show(1, 0, 3, 0) * stagger(c.p(1, 0, 1, 1.2), i, 3); op(s.h, k); op(s.b, k); });
+    // 问题关闭：工单保持可见，签核时逐个飞进已完成区落位（stopAt 挡住托盘面），落位后槽位转绿
+    op(P.tray, c.show(4, 0, 99));
+    P.pins.forEach((pn, i) => {
+      const show = c.show(1, 0, 99) * stagger(c.p(1, 0, 1, 1.2), i, 3);
+      const k = stagger(c.lin(4, 0, 4, 'end'), i, 3, .8), r = pn.userData.travel(k);
+      const landed = r.contact || k > .999;
+      op(pn, show); op(P.slots[i], landed ? 1 : c.show(4, 0, 99) * .3);
+      P.issues[i].b.material.color.set(new THREE.Color(landed ? COL.green : COL.amber).multiplyScalar(landed ? 1.5 : 1.25));
+    });
     P.axes.forEach(a => { op(a, c.show(2, 0, 3, 1)); K.growTube(a, c.p(2, 0, 2, .7)); });
     const seams = Object.values(P.fl); seams.forEach((l, i) => { op(l, c.show(3, 0, 5, 1) * .9); K.drawLine(l, c.p(3, 0, 3, 1.5)); });
     if (c.after(3, 0)) { u.uMode.value = 3; u.uLoad.value = 0; car.set('heat', 1); }
