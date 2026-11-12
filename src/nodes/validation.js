@@ -143,6 +143,8 @@ export const validation2 = {
     for (let i = 0; i < 70; i++) { const d = K.glow(new THREE.BoxGeometry(.008, .12, .008), COL.blue, 2.2, .8); d.userData.seed = [hs(i) * 4.6 - 2.3, hs(i + 7), hs(i + 13) * 2 - 1]; P.rain.add(d); P.drops.push(d); }
     P.cmp = [['chip', COL.cyan, A.at([0, 2.1, 0], 2.4, -.6)], ['search', COL.green, A.at([0, 2.1, 0], 3.4, -.6)]].map(([ic, col, p]) => chip(K, ic, col, p, .34));
     P.doc = docStack(K, 5, COL.white, .4, .52); setP(P.doc, A.at([0, .02, 0], -3.0, -.6));
+    // 报告从上方落到台面：落点=台面（stopAt 卡住，越界不再下沉），纸页随后摊开、法规与印章落定
+    P.docSeed = land(K, [[0, .6, 0], [0, .3, 0], [0, 0, 0], [0, -.04, 0]], 2, {push: 0, axis: 'y'});
     P.law = chip(K, 'law', COL.violet, A.at([0, 1.2, 0], -3.0, -.6), .4); P.stamp = chip(K, 'stamp', COL.green, A.at([0, 1.2, 0], -2.0, -.6), .36);
     return P;
   },
@@ -178,7 +180,7 @@ export const validation2 = {
     op(P.rain, on * (q === 3 ? 1 : 0)); P.drops.forEach(d => { const [x, ph, z] = d.userData.seed; d.position.set(x, Math.max(2.4 - ((t * 1.6 + ph) % 1) * 2.34, surf(x, z)), z); });
     P.cmp.forEach((m2, i) => op(m2, c.show(4, 1.5 + i * .3, 5, 1)));
     // 6 证据
-    op(P.doc, c.show(5, 0)); P.doc.userData.sheets.forEach((s, i) => s.position.y = i * .04 * stagger(c.p(5, 0, 5, 1), i, 5) + .02);
+    op(P.doc, c.show(5, 0)); P.docSeed.userData.travel(c.p(5, 0, 5, .9)); P.doc.position.y = .02 + P.docSeed.children[0].position.y; P.doc.userData.sheets.forEach((s, i) => s.position.y = i * .04 * stagger(c.p(5, 0, 5, 1), i, 5) + .02);
     op(P.law, c.show(5, .5)); op(P.stamp, c.show(5, 1.2)); P.stamp.scale.setScalar(.36 * (1 + .4 * c.pulse(5, 1.2, .8)));
   }
 };
@@ -230,7 +232,9 @@ export const validation3 = {
     const t = c.t, zp = P._z;
     ghostCar(car, .85 * (1 - c.p(5, 0, 5, 1) * .7));
     S.show('eea', 1); S.eea.reach = 1; S.show('battery', .5); S.show('drive', .5);
-    op(P.mark, c.show(0, 0, 3, 0) * (.6 + .4 * Math.sin(t * 7))); setP(P.mark, [zp.x, zp.y + .06, zp.z]); P.mark.scale.setScalar(1 + .3 * c.pulse(0, 0, 1.2));
+    // 标记环从上方落到问题件顶面：落点=件顶 +.06（落定后不再下沉，只做呼吸脉冲），"在哪儿"因此落在具体位置上
+    const mk = c.p(0, 0, 0, 1.1);
+    op(P.mark, c.show(0, 0, 3, 0) * (.6 + .4 * Math.sin(t * 7))); setP(P.mark, [zp.x, zp.y + .06 + .6 * (1 - mk), zp.z]); P.mark.scale.setScalar(1 + .3 * c.pulse(0, 0, 1.2));
     P.rec.forEach((r, i) => op(r, c.show(0, .5 + i * .4, 1, 1)));
     // 2 诊断
     op(P.trace, c.show(1, 0, 2, 0)); K.growTube(P.trace, c.p(1, 0, 1, 1.2));

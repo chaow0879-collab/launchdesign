@@ -215,9 +215,9 @@ export const demand2 = {
     P.boxSh = P.boxes.map(b => { const sh = K.add(K.shadowPatch(.8, .3)); setP(sh, [b.position.x, .012, b.position.z]); return sh; });
     P.blade = K.add(K.holoBox(4.95, 1.75, .02, COL.cyan, .1, .85));
     P.bladeSol = K.stopAt(new THREE.Group(), [[0, .85, 1.38], [0, .85, .72], [0, .85, 0]], 1);
-    P.eject = K.stopAt(new THREE.Group(), [[0, .2, 0], [0, -.05, 0], [-.4, -.05, 1.6], [-.4, .02, 2.4]], .58, {push: .03, axis: 'y'});
+    P.eject = K.stopAt(new THREE.Group(), [[0, 0, 0], [0, -.05, 0], [-.4, -.05, 1.6], [-.4, .02, 2.4]], .58, {push: .03, axis: 'y'});
     P.hpSol = K.stopAt(new THREE.Group(), [hp[3], mixV(hp[3], P.goal.position.toArray(), .3)], 1);
-    P.sideSol = P.side.map((s, i) => { const tgt = [i ? 1.45 : -1.45, 1.0, 0]; return K.stopAt(new THREE.Group(), [s.p, [(s.p[0] + tgt[0]) / 2, Math.max(s.p[1], tgt[1]) + .5, (s.p[2] + tgt[2]) / 2], tgt], 1); });
+    P.sideSol = P.side.map((s, i) => { const tgt = [i ? 1.45 : -1.45, 1.0, i ? .95 : -.95]; return K.stopAt(new THREE.Group(), [s.p, [(s.p[0] + tgt[0]) / 2, Math.max(s.p[1], tgt[1]) + .5, (s.p[2] + tgt[2]) / 2], tgt], 1); });
     return P;
   },
   update(c, P, K, S, car) {
@@ -333,9 +333,10 @@ export const demand3 = {
     P.depSol = [1, 2].map(i => K.stopAt(new THREE.Group(), [bW(-2.6, 2.2), bW(-1.8, 2.1), bW(bxc(i), P.bars[i].userData.y)], .9));
     P.exchSol = [[1, 2], [3, 4]].map(([a, b]) => K.stopAt(new THREE.Group(), [bW(bxc(a), P.bars[a].userData.y), bW((bxc(a) + bxc(b)) / 2 + .4, 1.25), bW(bxc(b), P.bars[b].userData.y)], .9));
     P.chgSol = [1, 4].map(i => K.stopAt(new THREE.Group(), [bW(-1.1, 1.4), bW(-.6, 1.9), bW(bxc(i), P.bars[i].userData.y)], .9));
-    // 并入基线的路径走板面局部坐标：九条任务条压到板下沿的同一条 baseline 轨上
-    P.joinSol = P.bars.map((b, i) => { const sx = -2.8 + i * .68; return K.stopAt(new THREE.Group(), [[b.position.x, b.position.y, 0], [(b.position.x + sx) / 2, (b.position.y + .2) / 2 + .5, 0], [sx, .2, 0]], 1); });
-    P.chunk = [0, 1, 2, 3, 4, 5].map(() => K.add(K.solid(K.rbox(.13, .13, .13, .02), 0xe7f3ff, {tier: 'metal', edge: .6})));
+    // 并入基线的路径走板面局部坐标：八条通过评审的任务条压到板下沿同一条 baseline 轨上（第7条未关闭、第9条是基线本身，都不并）
+    const mergeIdx = [0, 1, 2, 3, 4, 5, 6, 8];
+    P.joinSol = P.bars.map((b, i) => { const sx = -2.66 + Math.max(0, mergeIdx.indexOf(i)) * .76; return K.stopAt(new THREE.Group(), [[b.position.x, b.position.y, 0], [(b.position.x + sx) / 2, (b.position.y + .2) / 2 + .5, 0], [sx, .2, 0]], 1); });
+    P.chunk = [0, 1, 2, 3, 4, 5].map(() => K.add(K.solid(new THREE.BoxGeometry(.13, .13, .13), 0xe7f3ff, {tier: 'metal', edge: .6})));
     return P;
   },
   update(c, P, K, S, car) {
@@ -357,13 +358,13 @@ export const demand3 = {
     // 2 先后依赖
     op(P.lay, c.show(1, 0, 1, 2) * .9); P.bars[0].scale.y = 1 + .5 * c.show(1, 0, 2, 0);
     P.dep.forEach((l, i) => { const [a, b] = l.userData.ab; const pa = w(P.bars[a]), pb = w(P.bars[b]); const pts = [[pa[0] + C0.right[0] * .6, pa[1], pa[2] + C0.right[2] * .6], [pb[0] - C0.right[0] * .7, pb[1], pb[2] - C0.right[2] * .7]]; l.geometry.setFromPoints(pts.map(p => new THREE.Vector3(...p))); op(l, c.show(1, .5 + i * .6, 3, 0)); });
-    P.depSol.forEach((s, i) => { s.userData.travel(stagger(c.p(1, .5, 1, 2.2), i, 2)); const ck = P.chunk[i]; ck.position.copy(s.children[0].position); op(ck, c.show(1, .5, 3, 0)); });   // 任务0 的结果真的交到任务1、2 的起点，到边界就停
+    P.depSol.forEach((s, i) => { const u = stagger(c.p(1, .5, 1, 2.2), i, 2); s.userData.travel(u); const ck = P.chunk[i]; ck.position.copy(s.children[0].position); ck.rotation.y = u * Math.PI * 4; op(ck, c.show(1, .5, 3, 0)); });   // 任务0 的结果真的交到任务1、2 的起点，到边界就停（块边飞边转两圈）
     op(P.sketch, c.show(1, 2, 2, 0)); K.drawLine(P.sketch, c.p(1, 2, 1, 'end')); S.show('biw', c.show(1, 2.2, 2, 0) * .7);
     // 3 并行
     const par = c.show(2, 0, 3, 0);
     [1, 2, 3, 4].forEach(i => P.bars[i].scale.y = 1 + .35 * par * (.5 + .5 * Math.sin(t * 3 + i)));
     P.exch.forEach((f, i) => { const [a, b] = f.userData.ab; const pa = w(P.bars[a]), pb = w(P.bars[b]); f.userData.update = f.userData.update; const cur = new THREE.LineCurve3(new THREE.Vector3(...pa), new THREE.Vector3(...pb)); const pos = f.geometry.attributes.position, ak = f.geometry.attributes.aK; for (let j = 0; j < 8; j++) { const u = ((t * .9 + j / 8 + i * .2) % 1); const v = cur.getPoint(u); pos.setXYZ(j, v.x, v.y, v.z); ak.setX(j, .8); } pos.needsUpdate = ak.needsUpdate = true; op(f, c.show(2, 2, 3, 0)); });
-    P.exchSol.forEach((s, i) => { const u = c.lin(2, .2, 3, 0); s.userData.travel(u < .5 ? u * 2 : 2 - u * 2); const ck = P.chunk[2 + i]; ck.position.copy(s.children[0].position); op(ck, c.show(2, .2, 3, 0)); });   // 条件块在两条任务之间来回交接
+    P.exchSol.forEach((s, i) => { const u = c.lin(2, .2, 3, 0), uu = u < .5 ? u * 2 : 2 - u * 2; s.userData.travel(uu); const ck = P.chunk[2 + i]; ck.position.copy(s.children[0].position); ck.rotation.y = u * Math.PI * 4; op(ck, c.show(2, .2, 3, 0)); });   // 条件块在两条任务之间来回交接并自转
     car.set('edges', Math.max(.2, c.show(2, 1, 3, 0) * .7)); S.show('biw', Math.max(0, c.show(2, 1, 3, 0) * .6)); S.show('drive', c.show(2, 1, 3, 0) * .7); S.show('eea', c.show(2, 1, 3, 0) * .7);
     if (c.between(2, 1, 3, 0)) { car.set('paint', .25); car.set('ghost', .8); }
     // 4 变更同步
@@ -371,7 +372,7 @@ export const demand3 = {
     op(P.change, c.show(3, 0, 4, 0) * (1 - ch * .3)); setP(P.change, b2); P.change.rotation.y = C0.ry; P.change.scale.setScalar(1 + 5 * ch);
     [1, 3].forEach((i, k) => { const lit = c.pulse(3, .5 + k * .3, 1.2); P.bars[i].scale.y = 1 + lit; });
     const st = c.show(3, 1.3, 3, 2.6); op(P.stale, st); const p4 = w(P.bars[4]); setP(P.stale, [p4[0], p4[1] + .35, p4[2]]); P.bars[4].userData.edge.material.opacity = 1 - .8 * st;
-    P.chgSol.forEach((s, i) => { s.userData.travel(stagger(c.p(3, .3, 3, 1.6), i, 2)); const ck = P.chunk[4 + i]; ck.position.copy(s.children[0].position); op(ck, c.show(3, .3, 4, 0)); });   // 变更块沿协作线传到相邻任务
+    P.chgSol.forEach((s, i) => { const u = stagger(c.p(3, .3, 3, 1.6), i, 2); s.userData.travel(u); const ck = P.chunk[4 + i]; ck.position.copy(s.children[0].position); ck.rotation.y = u * Math.PI * 4; op(ck, c.show(3, .3, 4, 0)); });   // 变更块沿协作线传到相邻任务
     // 5 阶段评审
     const g = c.lin(4, 0, 4, 1.2); op(P.gate, c.show(4, 0, 5, 0)); P.gate.position.x = lerp(-3.4, 3.1, g);
     P.bars.forEach((b, i) => {
@@ -387,7 +388,7 @@ export const demand3 = {
     op(P.base, c.show(5, 0)); P.base.scale.set(bl, 1, bl);
     op(P.rail2, bl * c.show(5, 0, 5, 'end') * .9);
     P.bars.forEach((b, i) => {
-      if (!c.after(5, 0) || i === 7) return;
+      if (!c.after(5, 0) || i === 7 || i === 9) return;
       const r = P.joinSol[i].userData.travel(bl * 1.05);                // 任务条真的沿路径落到基线台面的卡槽里
       b.position.copy(P.joinSol[i].children[0].position); b.scale.y = 1 - .08 * r.over;   // 到面后轴向压紧 0.08
     });

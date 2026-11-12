@@ -368,6 +368,9 @@ export const engineering4 = {
     // 2 网格
     if (c.after(1, 0)) { car.set('paint', 0); car.set('ghost', 0); car.set('heat', 1); u.uMode.value = 0; u.uLoad.value = .0; car.set('edges', c.show(1, 0, 3, 0) * .9); car.set('points', c.show(1, .5, 2, 0)); }
     car.ptsMat.uniforms.uSize.value = 2.2 + 3.8 * c.show(1, .5, 2, 0);   // 网格点由 2.2 放大到 6，随点云一起收，其余镜头仍是 2.2
+    // 网格从车头铺到车尾：线框与点云共用 uReveal，扫过 -2.6→3.4（>2.4 即全车画完，扫描亮边随即离场），
+    // reset 每帧把 uReveal 回 10，所以其它镜头仍是整片显示；这里只覆盖本镜头
+    car.edgeMat.uniforms.uReveal.value = car.ptsMat.uniforms.uReveal.value = lerp(-2.6, 3.4, c.p(1, 0, 1, 1.5));
     P.fix.forEach(m => op(m, c.show(1, 1, 3, 0)));
     // 3 载荷：载荷压到车头，漆面/油泥跟着同一个 uDeform 真鼓起来（setDeformFollow），后半段再切到受力色图
     const ld = c.p(2, 0, 2, 1.2);
@@ -431,7 +434,7 @@ export const engineering5 = {
     P.verRings = [S.eea.central, ...S.eea.zones].map(n => { const r = K.add(K.ring(.13, COL.violet, .01)); r.rotation.x = Math.PI / 2; return {r, n}; });
     P.cal = chip(K, 'gear', COL.violet, [.35, 1.3, 0], .32);
     P.list = [0, 1, 2, 3, 4].map(i => { const p = A.at([0, 2.3 - i * .36, 0], -3.2, -.6); return {row: (() => { const r = K.add(K.holoBox(1.4, .22, .04, COL.white, .12, .9)); setP(r, p); r.rotation.y = A.ry; return r; })(), ok: chip(K, i === 3 ? 'user' : 'check', i === 3 ? COL.amber : COL.green, A.at(p, .9), .22)}; });
-    P.bay = K.add(new THREE.Group()); P.bayRing = K.add(K.group(K.ring(.8, COL.amber, .012))); P.bayRing.children[0].rotation.x = -Math.PI / 2; setP(P.bayRing, [-4.2, .02, -1.6]);
+    P.bayRing = K.add(K.group(K.ring(.8, COL.amber, .012))); P.bayRing.children[0].rotation.x = -Math.PI / 2; setP(P.bayRing, [-4.2, .02, -1.6]);
     // 交接落位：数据包与图钉沿竖直路径落到基线台面（y=.34 / .12），落点由 stopAt 卡住，落定后压 .05
     P.land = land(K, [P.pkg.position.toArray(), [-4.2, 1.5, -1.6], [-4.2, .34, -1.6], [-4.2, -.6, -1.6]], 2, {push: 0, axis: 'y'});
     P.pin = K.add(K.glow(new THREE.ConeGeometry(.03, .18, 10), COL.amber, 2.8)); P.pin.rotation.x = Math.PI; setP(P.pin, [-4.2, 1.15, -1.6]);
@@ -459,9 +462,11 @@ export const engineering5 = {
     const sw = c.show(3, 0, 4, 0);
     if (sw > 0) { ghostCar(car, sw); S.show('eea', sw); S.eea.reach = 1; }
     P.verRings.forEach((v, i) => { const k = stagger(c.p(3, .3, 3, 1.4), i, 5); op(v.r, sw * k); P.ringSeed.userData.travel(k); const p = v.n.position; setP(v.r, [p.x, p.y + .08 + P.ringSeed.children[0].position.y, p.z]); });
-    op(P.cal, c.show(3, 1.4, 4, 0)); P.cal.rotation && (P.cal.material.rotation = t * 2);
+    // Sprite.rotation 默认是 0（falsy），原来 `P.cal.rotation && ...` 永远不会执行；改成直接转材质，标定齿轮才会随进度转
+    op(P.cal, c.show(3, 1.4, 4, 0)); P.cal.material.rotation = t * 2;
     // 5 复核
-    P.list.forEach((r, i) => { const k = stagger(c.p(4, 0, 4, 'end'), i, 5); op(r.row, c.show(4, 0, 5, 0) * Math.min(1, k * 3)); op(r.ok, c.show(4, 0, 5, 0) * k); });
+    // 每项确认标记从行上方落进行尾槽位：落点=行内（y +.24 → 0），逐项落下、停住才算过
+    P.list.forEach((r, i) => { const k = stagger(c.p(4, 0, 4, 2.7), i, 5); op(r.row, c.show(4, 0, 5, 0) * Math.min(1, k * 3)); op(r.ok, c.show(4, 0, 5, 0) * k); r.ok.position.y += .24 * (1 - k); });
     // 6 交接：数据包与图钉沿竖直路径落到基线台面（stopAt 卡在台面），落定瞬间轴向压缩 .05 表示压实
     const mv = c.p(5, 0, 5, 1.2), seat = P.land.userData.travel(mv);
     if (c.after(5, 0)) { setP(P.pkg, P.land.children[0].position.toArray()); P.pkg.scale.set(.6, .6 * (1 - .05 * seat.over), 1); }

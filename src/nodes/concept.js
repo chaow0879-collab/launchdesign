@@ -73,7 +73,7 @@ export const concept1 = {
     // 1 落笔
     const vis1 = c.out(3, 1.2, 1.2);
     car.set('paint', 0); car.set('wheels', 0);
-    op(P.paper, c.show(0, 0, 3, .5) * .8);
+    op(P.paper, c.show(0, 0, 3, .5) * .6);
     op(sk.base, c.in(0, 0) * vis1); K.drawLine(sk.base, c.p(0, 0, 0, .6));
     op(sk.wf, c.in(0, .3) * vis1); K.drawLine(sk.wf, c.p(0, .3, 0, .9)); op(sk.wr, c.in(0, .5) * vis1); K.drawLine(sk.wr, c.p(0, .5, 0, 1));
     op(sk.top, c.in(0, 1) * vis1); K.drawLine(sk.top, c.p(0, 1, 0, 1.55));
@@ -89,7 +89,7 @@ export const concept1 = {
     op(P.penSh, penOn * .9); setP(P.penSh, [gp.getX(gi), gp.getY(gi), gp.getZ(gi) - .004]);
     // 2 推演
     P.alt.forEach((l, i) => { const k = stagger(c.p(1, 0, 1, 2), i, 3); op(l, c.show(1, 0, 2, 0) * (k > 0 ? .35 + .65 * Math.max(0, 1 - Math.abs(c.lin(1, 0, 1, 2) * 3 - i - .5)) : 0)); K.drawLine(l, k); });
-    // 2 推演：同一支笔把三条车顶走势依次描出来（尖端在纸面上，走势从尖端生长）
+    // 同一支笔把三条车顶走势依次描出来（尖端在纸面上，走势从尖端生长）
     if (c.after(1, 0)) {
       let alt = null;
       P.alt.forEach((l, i) => { const k = stagger(c.p(1, 0, 1, 2), i, 3); if (k > 0 && k < .99 && (!alt || k < alt[1])) alt = [l, k]; });
@@ -283,7 +283,7 @@ export const concept3 = {
     P.batSol = K.stopAt(new THREE.Group(), [[0, 0, 1.9], [0, 0, .9], [0, 0, 0]], 1);
     P.roofSol = K.stopAt(new THREE.Group(), [[0, 0, 0], [0, .22, 0]], .8);
     P.trailSol = P.trail.map(tr => K.stopAt(new THREE.Group(), [[tr.p[0], tr.p[1] + .32, tr.p[2]], [(tr.p[0] + 3.3) / 2, Math.max(tr.p[1], 1.45) + .5, .4], [3.3, 1.42, -.46]], .92));
-    P.roofAl = [-3, 0, 3].map((al, i) => { const o = A3.at([0, 0, 0], al, -.6); return [-o[0], 0, [-.55, 0, .55][i]]; });
+    P.roofAl = [-3, 0, 3].map((al, i) => { const o = A3.at([0, 0, 0], al, -.6); return [-o[0], 0, [-.5, 0, .5][i] - o[2]]; });   // 三条走势收进同一比较位
     return P;
   },
   update(c, P, K, S, car) {
@@ -305,7 +305,7 @@ export const concept3 = {
     });
     P.judge.forEach((j, i) => op(j, c.show(1, 1, 2, 0) * stagger(c.p(1, 1, 1, 'end'), i, 2)));
     // 3 叠合
-    P.vars.forEach((v, i) => { const k = c.p(2, 0, 2, .8); const h = v.userData.home; setP(v, mixV(h, [0, 0, 0], k)); });
+    if (c.after(2, 0)) P.vars.forEach((v, i) => { const k = c.p(2, 0, 2, .8); const h = v.userData.home; setP(v, mixV(h, [0, 0, 0], k)); });   // 只从第 3 镜开始叠合，否则会每帧覆盖第 1 镜的 varSol 滑入
     op(P.low, c.show(2, .4, 4, 1)); K.drawLine(P.low, c.p(2, .4, 2, 1));
     P.lowSol.userData.travel(c.p(2, .7, 2, 1.7)); P.low.position.copy(P.lowSol.children[0].position);   // 低趴轮廓压下来，到乘员头顶就停
     P.hps.forEach((h, i) => op(h, c.show(2, .2, 4, 0) * stagger(c.p(2, .2, 2, .9), i, 5)));
@@ -314,7 +314,7 @@ export const concept3 = {
     if (c.after(2, 0)) { car.set('paint', .2); car.set('ghost', .9); }
     // 4 内部包络
     S.show('battery', c.show(3, 0, 5, 1) * .9); S.show('drive', c.show(3, .5, 5, 1) * .8); S.show('cabin', c.show(3, .3, 5, 1) * .5); S.show('eea', c.show(3, 1, 5, 0) * .4);
-    P.batSol.userData.travel(c.p(3, 0, 3, 1.2)); S.battery.g.position.copy(P.batSol.children[0].position);   // 电池从车尾滑进地板下就停
+    P.batSol.userData.travel(c.p(3, 0, 3, 1.2)); S.battery.g.position.copy(P.batSol.children[0].position);   // 电池从外侧滑进地板下就停
     op(P.conf, c.show(3, 1, 4, 1.5) * (.5 + .5 * Math.sin(t * 6)));
     // 5 联合评审
     P.sides.forEach((s, i) => { const k = stagger(c.p(4, 0, 4, .8), i, 2) * c.out(5, .5); op(s.b, k); op(s.l, k); K.drawLine(s.l, k); });
