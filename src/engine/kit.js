@@ -154,7 +154,7 @@ export function createKit(scene) {
     // 接触停止：obj 沿 path 前进，到 stopU 处停住，越过的进度只换成 ≤push 的让位（不穿透），不再前进。
     // 用法：const g = K.add(K.stopAt(blade, pts, .82, {push: .02})); 每帧 g.userData.travel(k)，返回 {u, contact, over}
     stopAt(obj, path, stopU = 1, {push = 0, axis = 'y', squash = 0} = {}) {
-      const c = (path && path.isCurve) ? path : K.curve(path);
+      const c = (path && typeof path.getPointAt === "function") ? path : K.curve(path);  // three 0.180 的 Curve 没有 isCurve 标记，按能力判定
       const g = new THREE.Group(); g.add(obj);
       const home = obj.position.clone(), homeS = obj.scale.clone();
       const stop = clamp(stopU);
