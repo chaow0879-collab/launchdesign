@@ -191,3 +191,10 @@
 body.playing .lead-card{border-left-color:var(--hud);box-shadow:var(--glow)}
 body.playing .lead-card:hover{border-left-color:var(--hud-soft);box-shadow:var(--glow)}
 body.playing .parallel-chip{border-color:var(--hud-dim)}
+
+
+/* 官方 LOGO（白色版，取自 launchdesign.com.cn）*/
+.brand-logo{height:34px;width:auto;display:block;filter:drop-shadow(0 0 10px rgba(88,225,255,.25))}
+.brand{gap:12px}
+@media(max-width:760px){.brand-logo{height:26px}}
+@media(min-width:1700px){.brand-logo{height:40px}}
