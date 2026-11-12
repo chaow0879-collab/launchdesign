@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {clamp, smooth} from './core.js';
 
-export const COL = {cyan: 0x52d6ff, blue: 0x3d8bff, teal: 0x2fe3c0, green: 0x5dff9a, amber: 0xffb547, orange: 0xff7a2f, red: 0xff4d5e, violet: 0xa98bff, white: 0xeaf6ff, pink: 0xff6fb5, gold: 0xffd36b};
+export const COL = {cyan: 0x58E1FF, blue: 0x3d8bff, teal: 0x2fe3c0, green: 0x5dff9a, amber: 0xffb547, orange: 0xff7a2f, red: 0xff4d5e, violet: 0xa98bff, white: 0xeaf6ff, pink: 0xff6fb5, gold: 0xffd36b};
 const tmpV = new THREE.Vector3();
 
 // ---- 透明度：记录每个材质的基础透明度，再整体乘一个系数 ----
@@ -77,6 +77,17 @@ function iconTexture(name, ring = true) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; iconCache.set(key, t); return t;
 }
 
+// 软阴影贴片贴图（与 core.js 车下接触阴影同一做法）：一次画好，所有部件复用
+let _softShadow = null;
+function softShadowTex() {
+  if (_softShadow) return _softShadow;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const r = g.createRadialGradient(64, 64, 6, 64, 64, 62);
+  r.addColorStop(0, 'rgba(0,0,0,0.9)'); r.addColorStop(.5, 'rgba(0,0,0,0.42)'); r.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  _softShadow = new THREE.CanvasTexture(c); return _softShadow;
+}
+
 export function createKit(scene) {
   const nodeRoot = new THREE.Group(); nodeRoot.name = 'node-props'; scene.add(nodeRoot);
   const sysRoot = new THREE.Group(); sysRoot.name = 'systems'; scene.add(sysRoot);
@@ -104,10 +115,21 @@ export function createKit(scene) {
     },
     holoBox(w, h, d, color, fill, edge) { return K.holo(new THREE.BoxGeometry(w, h, d), color, fill, edge); },
     // 实体件：有质感的金属/塑料，带一点自发光便于在暗场辨认
-    solid(geo, color = 0x8ea3b4, {metal = .55, rough = .38, emissive = 0x000000, ei = 0} = {}) {
-      return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color, metalness: metal, roughness: rough, emissive, emissiveIntensity: ei, transparent: true}));
+    // 质感档：壳体(shell) 是默认档；金属件传 {tier:'metal'}，塑料件传 {tier:'plastic'}；
+    // 需要"临界面"时传 {edge:.6} 会在同几何上加一条极细亮边（去塑料感最省力的一招）。
+    TIER: {metal: {metal: .5, rough: .35}, shell: {metal: .3, rough: .45}, plastic: {metal: .18, rough: .55}},
+    solid(geo, color = 0x8ea3b4, {metal = .3, rough = .45, emissive = 0x000000, ei = 0, tier = null, edge = 0} = {}) {
+      if (tier && K.TIER[tier]) { metal = K.TIER[tier].metal; rough = K.TIER[tier].rough; }
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color, metalness: metal, roughness: rough, emissive, emissiveIntensity: ei, transparent: true}));
+      if (edge > 0) {
+        const lm = new THREE.LineBasicMaterial({color: new THREE.Color(color).lerp(new THREE.Color(COL.white), .55).multiplyScalar(1.7), transparent: true, opacity: clamp(edge), toneMapped: false, depthWrite: false});
+        const l = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 26), lm);
+        l.renderOrder = 3; mesh.add(l);
+      }
+      return mesh;
     },
-    rbox(w, h, d, r = .03) { return new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2)); },
+    // 圆角盒：默认倒角比原来大 35%（薄件仍按半厚夹紧），让程序化部件不再"刀切方块"
+    rbox(w, h, d, r = .03) { return new RoundedBoxGeometry(w, h, d, 3, Math.min(r * 1.35, w / 2, h / 2, d / 2)); },
     glow(geo, color, intensity = 2.4, opacity = 1) { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: new THREE.Color(color).multiplyScalar(intensity), transparent: true, opacity, toneMapped: false, depthWrite: false, blending: THREE.AdditiveBlending})); return m; },
     badge(icon, color = COL.cyan, size = .42, ring = true) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({map: iconTexture(icon, ring), color: new THREE.Color(color).multiplyScalar(1.25), transparent: true, depthWrite: false, toneMapped: false}));
@@ -129,6 +151,27 @@ export function createKit(scene) {
       m.userData.curve = c; m.userData.segs = segs; return m;
     },
     growTube(m, k) { const n = m.geometry.index.count; m.geometry.setDrawRange(0, Math.floor(n * clamp(k) / 6) * 6); },
+    // 接触停止：obj 沿 path 前进，到 stopU 处停住，越过的进度只换成 ≤push 的让位（不穿透），不再前进。
+    // 用法：const g = K.add(K.stopAt(blade, pts, .82, {push: .02})); 每帧 g.userData.travel(k)，返回 {u, contact, over}
+    stopAt(obj, path, stopU = 1, {push = 0, axis = 'y', squash = 0} = {}) {
+      const c = (path && path.isCurve) ? path : K.curve(path);
+      const g = new THREE.Group(); g.add(obj);
+      const home = obj.position.clone(), homeS = obj.scale.clone();
+      const stop = clamp(stopU);
+      const hit = c.getPointAt(Math.min(stop, .9999)).clone();   // 接触点
+      const travel = (k = 0) => {
+        const u = clamp(k), uu = Math.min(u, stop);
+        obj.position.copy(home).add(uu >= stop ? hit : c.getPointAt(uu));
+        const over = u > stop ? clamp((u - stop) / Math.max(.05, 1 - stop)) : 0;
+        if (over > 0) {
+          if (push) obj.position[axis] += push * over;
+          if (squash) obj.scale.copy(homeS).multiplyScalar(1 - squash * over);
+        } else obj.scale.copy(homeS);
+        return {u: uu, contact: over > 0, over};
+      };
+      g.userData = {...g.userData, travel, hit: hit.toArray(), curve: c, stopU: stop};
+      return g;
+    },
     // 沿路径流动的光点：t 为工序时间（决定位置），reach 为流到多远
     flow(pts, {color = COL.cyan, n = 18, size = 5, speed = .25, curve} = {}) {
       const c = curve || K.curve(pts);
@@ -151,6 +194,13 @@ export function createKit(scene) {
     },
     ring(r = .3, color = COL.cyan, t = .012) { return K.glow(new THREE.TorusGeometry(r, t, 8, 64), color, 2.4, .95); },
     disc(r, color, opacity = .25) { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false})); return m; },
+    // 地面接触暗影：程序化部件落到地面/车体上时铺一张径向渐变贴片（不用 shadowMap）
+    // 用法：const sh = K.add(K.shadowPatch(.55, .5)); setP(sh, [x, .008, z]);
+    shadowPatch(r = .6, opacity = .5) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(r * 2, r * 2), new THREE.MeshBasicMaterial({map: softShadowTex(), color: 0x000000, transparent: true, opacity, depthWrite: false}));
+      m.rotation.x = -Math.PI / 2; m.position.y = .008; m.renderOrder = 1;
+      m.userData.radius = r; return m;
+    },
     // 扇形探测区
     fan(radius, angle, color = COL.cyan, opacity = .16) {
       const geo = new THREE.CircleGeometry(radius, 32, -angle / 2, angle);

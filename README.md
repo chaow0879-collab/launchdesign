@@ -38,14 +38,16 @@ node build.mjs --web            # 嵌入用的片段版
 
 ## 部署
 
-`dist/` 是提交进仓库的构建产物，服务器只需要静态托管，不需要 Node、不需要 npm。
+`dist/` 是**站点版**构建产物（`index.html` + `model.glb` + `audio/*.mp3`），由 `node build.mjs --site` 生成；它不是单份 HTML，不能脱离同目录的车模与配音单独打开。
+
+单文件版用 `node build.mjs` 生成 `out/龙创汽车设计_交互动画_v8.html`（约 22.5MB，模型/脚本/样式/26 段配音全部内嵌），生成方式、体积构成与站内 `/download/` 挂载见 [`docs/单文件交付说明.md`](docs/单文件交付说明.md)。
 
 ```bash
 bash /root/ld install        # 识别为静态站，不注册 node 服务
 bash /root/ld caddy static   # Caddy 直接托管 dist/
 ```
 
-更新流程：本地改代码 → `node build.mjs --site` → 覆盖 `dist/` → 提交推送 → 服务器 `bash /root/ld deploy`。
+更新流程（站点版）：本地改代码 → `node build.mjs --site` → 覆盖 `dist/` → 提交推送 → 服务器 `bash /root/ld deploy`。单文件版按 `docs/单文件交付说明.md` 单独发布到 `/download/`。
 
 ## 构建注意
 

@@ -3,8 +3,9 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clamp} from './core.js';
+import {applyDebrand} from '../v9/debrand.js';
 
-const CYAN = new THREE.Color(0x58d8ff);
+const CYAN = new THREE.Color(0x58E1FF);
 
 function revealLineMat(color) {
   return new THREE.ShaderMaterial({
@@ -19,6 +20,8 @@ export async function loadCar(buffer) {
   const gltf = await new GLTFLoader().parseAsync(buffer, '');
   const src = gltf.scene;
   src.updateMatrixWorld(true);
+  // 品牌合规：摘掉车体实体徽标、把座舱屏显换成中性 HUD（幂等，不影响几何拆分）
+  const brandReport = applyDebrand(src, THREE);
   const box = new THREE.Box3().setFromObject(src);
   const size = box.getSize(new THREE.Vector3());
   const rot = new THREE.Matrix4();
@@ -30,7 +33,7 @@ export async function loadCar(buffer) {
   const s2 = b2.getSize(new THREE.Vector3()), scale = 4.72 / s2.x, c2 = b2.getCenter(new THREE.Vector3());
   const norm = new THREE.Matrix4().makeScale(scale, scale, scale).multiply(new THREE.Matrix4().makeTranslation(-c2.x, -b2.min.y, -c2.z));
   parts.forEach(p => p.geo.applyMatrix4(norm));
-  return {parts, flip: false};
+  return {parts, flip: false, brand: brandReport};
 }
 
 export function buildCar(loaded, {front = 1} = {}) {
@@ -119,14 +122,14 @@ export function buildCar(loaded, {front = 1} = {}) {
       }`
   }), paintMeshes);
   const heat = layer('heat', new THREE.ShaderMaterial({
-    transparent: true, uniforms: {uLoad: {value: 0}, uCenter: {value: new THREE.Vector3(2.2, .5, 0)}, uRadius: {value: 1.6}, uOpacity: {value: 1}, uMode: {value: 0}, uT: {value: 0}, uDeform: {value: 0}},
-    vertexShader: `uniform float uLoad; uniform vec3 uCenter; uniform float uRadius; uniform float uMode; uniform float uT; uniform float uDeform; varying float vF; varying vec3 vN; varying vec3 vW;
+    transparent: true, uniforms: {uLoad: {value: 0}, uCenter: {value: new THREE.Vector3(2.2, .5, 0)}, uRadius: {value: 1.6}, uOpacity: {value: 1}, uMode: {value: 0}, uT: {value: 0}, uDeform: {value: 0}, uDeformAmp: {value: .08}},
+    vertexShader: `uniform float uLoad; uniform vec3 uCenter; uniform float uRadius; uniform float uMode; uniform float uT; uniform float uDeform; uniform float uDeformAmp; varying float vF; varying vec3 vN; varying vec3 vW;
       void main(){ vec3 p = position; float f;
         if (uMode > 2.5) { f = exp(-pow(length(p - uCenter) / uRadius, 2.0)); }
         else if (uMode < .5) { f = exp(-pow(length(p - uCenter) / uRadius, 2.0)) * uLoad; }
         else if (uMode < 1.5) { f = clamp((p.x + 2.4) / 4.8, 0.0, 1.0); f = (1.0 - f) * .9 * uLoad + .1 * uLoad * sin(p.y * 8.0 + uT * 2.0); }
         else { f = (.5 + .5 * sin(p.x * 3.2 - uT * 3.0) * cos(p.z * 2.0)) * uLoad; }
-        vF = f; vN = normal; p += (uMode > 2.5 ? vec3(0.0, 1.0, 0.0) : normal) * uDeform * f * .08; vW = (modelMatrix * vec4(p, 1.0)).xyz; gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
+        vF = f; vN = normal; p += (uMode > 2.5 ? vec3(0.0, 1.0, 0.0) : normal) * uDeform * f * uDeformAmp; vW = (modelMatrix * vec4(p, 1.0)).xyz; gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
     fragmentShader: `uniform float uOpacity; uniform float uMode; uniform float uLoad; varying float vF; varying vec3 vN; varying vec3 vW;
       vec3 pal(float t){ t = clamp(t,0.0,1.0); vec3 a = vec3(0.05,0.2,0.85), b = vec3(0.1,0.8,0.9), c = vec3(0.35,0.95,0.3), d = vec3(1.0,0.85,0.1), e = vec3(1.0,0.2,0.1);
         if(t<.25) return mix(a,b,t/.25); if(t<.5) return mix(b,c,(t-.25)/.25); if(t<.75) return mix(c,d,(t-.5)/.25); return mix(d,e,(t-.75)/.25); }
@@ -137,9 +140,37 @@ export function buildCar(loaded, {front = 1} = {}) {
         #include <colorspace_fragment>
       }`
   }), paintMeshes);
+  // ---- 形变跟随：让 paint / clay 层选择性复用 heat 层的同一组 uDeform（默认关闭，节点显式开启） ----
+  // 用法：car.setDeformScale(.2) 调幅度；car.setDeformFollow(true) 让漆面/油泥跟着一起变形（heat 层仍独立工作）
+  const followU = {value: 0};
+  const DEFORM = heat.mat.uniforms;
+  const injectDeform = mat => {
+    mat.onBeforeCompile = shader => {
+      shader.uniforms.uDeform = DEFORM.uDeform;
+      shader.uniforms.uDeformAmp = DEFORM.uDeformAmp;
+      shader.uniforms.uLoad = DEFORM.uLoad;
+      shader.uniforms.uCenter = DEFORM.uCenter;
+      shader.uniforms.uRadius = DEFORM.uRadius;
+      shader.uniforms.uMode = DEFORM.uMode;
+      shader.uniforms.uT = DEFORM.uT;
+      shader.uniforms.uFollow = followU;
+      shader.vertexShader = 'uniform float uDeform; uniform float uDeformAmp; uniform float uLoad; uniform vec3 uCenter; uniform float uRadius; uniform float uMode; uniform float uT; uniform float uFollow;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        if ( uFollow > .001 ) {
+          float df;
+          if ( uMode > 2.5 ) { df = exp( -pow( length( transformed - uCenter ) / uRadius, 2.0 ) ); }
+          else if ( uMode < .5 ) { df = exp( -pow( length( transformed - uCenter ) / uRadius, 2.0 ) ) * uLoad; }
+          else if ( uMode < 1.5 ) { float fx = clamp( ( transformed.x + 2.4 ) / 4.8, 0.0, 1.0 ); df = ( 1.0 - fx ) * .9 * uLoad + .1 * uLoad * sin( transformed.y * 8.0 + uT * 2.0 ); }
+          else { df = ( .5 + .5 * sin( transformed.x * 3.2 - uT * 3.0 ) * cos( transformed.z * 2.0 ) ) * uLoad; }
+          transformed += ( uMode > 2.5 ? vec3( 0.0, 1.0, 0.0 ) : normal ) * uDeformAmp * uDeform * df * uFollow;
+        }`);
+    };
+    mat.customProgramCacheKey = () => 'deform-follow';
+  };
+  injectDeform(paint); injectDeform(clay.mat);
   // 线框：车身特征边，可按车长方向“画出来”
   const edgeGroup = new THREE.Group(); edgeGroup.visible = false; body.add(edgeGroup);
-  const edgeMat = revealLineMat(0x6fdcff);
+  const edgeMat = revealLineMat(0x58E1FF);
   shellMeshes.filter(m => m.geometry.attributes.position.count > 150).forEach(m => { const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, m.userData.isPaint ? 22 : 35), edgeMat); edgeGroup.add(e); });
   // 点云：车身顶点抽样
   const ptsGeo = (() => {
@@ -148,7 +179,7 @@ export function buildCar(loaded, {front = 1} = {}) {
   })();
   const ptsMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
-    uniforms: {uColor: {value: new THREE.Color(0x7cf0ff)}, uOpacity: {value: 1}, uReveal: {value: 10}, uSize: {value: 2.2}},
+    uniforms: {uColor: {value: new THREE.Color(0x58E1FF)}, uOpacity: {value: 1}, uReveal: {value: 10}, uSize: {value: 2.2}},
     vertexShader: 'uniform float uReveal; uniform float uSize; varying float vK; void main(){ vK = step(-position.x, uReveal); vec4 mv = modelViewMatrix*vec4(position,1.0); gl_PointSize = uSize * (6.0 / -mv.z); gl_Position = projectionMatrix*mv; }',
     fragmentShader: 'uniform vec3 uColor; uniform float uOpacity; varying float vK; void main(){ if (vK < .5) discard; vec2 d = gl_PointCoord - .5; if (dot(d,d) > .25) discard; gl_FragColor = vec4(uColor * 1.6, uOpacity); }'
   });
@@ -181,7 +212,7 @@ export function buildCar(loaded, {front = 1} = {}) {
       root.position.set(0, 0, 0); root.rotation.set(0, 0, 0); root.visible = true; body.position.set(0, 0, 0);
       Object.assign(state, {paint: 1, ghost: 0, clay: 0, zebra: 0, heat: 0, edges: 0, points: 0, wheels: 1});
       clipPlane.constant = 100; clipPlane.normal.set(0, 0, -1);
-      edgeMat.uniforms.uReveal.value = 10; edgeMat.uniforms.uAxis.value = 0; edgeMat.uniforms.uColor.value.set(0x6fdcff);
+      edgeMat.uniforms.uReveal.value = 10; edgeMat.uniforms.uAxis.value = 0; edgeMat.uniforms.uColor.value.set(0x58E1FF);
       ptsMat.uniforms.uReveal.value = 10;
       zebra.mat.uniforms.uPhase.value = 0; zebra.mat.uniforms.uTilt.value = 0;
       Object.assign(heat.mat.uniforms, {}); heat.mat.uniforms.uLoad.value = 0; heat.mat.uniforms.uMode.value = 0; heat.mat.uniforms.uDeform.value = 0; heat.mat.uniforms.uCenter.value.set(2.2, .5, 0); heat.mat.uniforms.uRadius.value = 1.6; zebra.mat.uniforms.uFreq.value = 26;
@@ -191,6 +222,10 @@ export function buildCar(loaded, {front = 1} = {}) {
     },
     set(k, v) { state[k] = v; },
     get: k => state[k],
+    // 形变幅度（默认 .08 与原实现一致）；跟随开关默认关，不影响现有 26 个节点的画面
+    setDeformScale(x = .08) { heat.mat.uniforms.uDeformAmp.value = Math.max(0, Math.min(1, Number.isFinite(x) ? x : .08)); },
+    setDeformFollow(on) { followU.value = on ? 1 : 0; },
+    getDeform() { return {scale: heat.mat.uniforms.uDeformAmp.value, follow: followU.value}; },
     spin(angle) { wheels.forEach(w => w.rotation.z = -angle); },
     clip(normal, constant) { clipPlane.normal.set(...normal); clipPlane.constant = constant; },
     apply(t) {

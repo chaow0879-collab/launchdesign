@@ -1,1 +1,169 @@
-:root{color-scheme:dark}
+/* ==========================================================================
+   T-102 舞台 UI 科技化
+   v8.css 最后加载：同优先级下天然胜出，因此所有覆盖只写在这里。
+   style-v4 / v4-additions / v5-additions / v7-additions 的原始值一个不动，
+   避免连带影响其它断点。
+   ========================================================================== */
+
+/* ---------- A. 一次性立 token ---------- */
+:root{
+  color-scheme:dark;
+  --hud:#58E1FF;
+  --hud-soft:rgba(88,225,255,.55);
+  --hud-dim:rgba(88,225,255,.30);
+  --hud-faint:rgba(88,225,255,.14);
+  --sub:#7B8CFF;
+  --ok:#2FE3C0;
+  --warn:#FFB020;
+  --alert:#FF3D5A;
+  --bg-0:#05080D;
+  --bg-1:#0A121C;
+  --bg-2:#101B28;
+  --t1:#EAF6FF;
+  --t2:#9FB6C6;
+  --t3:#5E7787;
+  --glow:0 0 12px rgba(88,225,255,.45),0 0 34px rgba(88,225,255,.16);
+  --e-out:cubic-bezier(.16,1,.3,1);
+  --d-base:280ms;
+  /* 由 app.js 每帧写入（documentElement 内联样式优先于这里） */
+  --node-progress:0;
+  --phase-progress:0;
+}
+
+/* ---------- B. 临界面：面板 / 播放条 / 镜头条 ---------- */
+/* 覆盖 v4-additions.css:9  border-color:#bbdff51b  + background 渐变 */
+#work-panel{
+  border:1px solid var(--hud-dim);
+  background:linear-gradient(160deg,rgba(16,27,40,.94),rgba(5,8,13,.97));
+  box-shadow:inset 0 0 30px rgba(88,225,255,.05);
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);
+  /* E1：1280×720 之类矮屏，面板内容不再被裁，改为面板内部滚动 */
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(88,225,255,.35) transparent;
+}
+#work-panel h2{color:var(--t1)}
+#work-panel::-webkit-scrollbar{width:4px}
+#work-panel::-webkit-scrollbar-thumb{background:rgba(88,225,255,.30);border-radius:2px}
+
+/* 覆盖 v4-additions.css:15  #90d7e522 */
+#action-overlay{border-top-color:var(--hud-dim)}
+/* 覆盖 v4-additions.css:24  #b8e5f11a */
+.player{border:1px solid var(--hud-dim)}
+
+/* 覆盖 v4-additions.css:19  #9acbd110 / #88cbd64a + v5-additions.css:7-8 */
+#shot-strip button{border-color:var(--hud-faint);background:rgba(9,23,38,.55)}
+#shot-strip button:hover{border-color:var(--hud-soft);background:rgba(27,56,71,.55)}
+#shot-strip button.done{border-color:rgba(88,225,255,.10)}
+#shot-strip button.active,
+#shot-strip button[aria-current="true"]{
+  border-color:var(--hud-soft);
+  background:linear-gradient(180deg,rgba(88,225,255,.10),rgba(88,225,255,.02));
+  box-shadow:var(--glow);
+}
+#shot-strip button:before{height:3px}
+#shot-strip button.active:before{background:var(--hud);box-shadow:0 0 8px var(--hud)}
+
+/* 覆盖 v4-additions.css:12  #8dd3de20 / #a8c8dc12 */
+.coverage-focus{border-color:var(--hud-faint)}
+#coverage-toggle{border-top-color:var(--hud-faint)}
+
+/* 覆盖 v4-additions.css:10  #75bcca4d / #e2b77b */
+.lead-card{border-left-color:var(--hud-dim)}
+.lead-card:hover,.lead-card:focus-visible{border-left-color:var(--hud);box-shadow:var(--glow)}
+.lead-card.shot-linked{border-left-color:var(--hud-soft)}
+.parallel-chip:hover{border-color:var(--hud-soft);box-shadow:var(--glow)}
+
+/* 覆盖 v4-additions.css:22  #a4d4d849 / v4-additions.css:24 */
+#autoplay-hint{border-color:var(--hud-dim)}
+.role-popover{border:1px solid var(--hud-dim)}
+#chapters button{border-color:var(--hud-faint)}
+#chapters button.active{border-color:var(--hud-dim);box-shadow:inset 0 -2px 0 var(--hud),0 0 14px rgba(88,225,255,.18)}
+
+/* ---------- C. 让页面活起来 ---------- */
+/* C2-1：--node-progress（app.js:142）接到页面顶部 2px 进度光带 */
+#experience:after{
+  content:'';position:absolute;top:0;left:0;height:2px;z-index:6;pointer-events:none;
+  width:calc(var(--node-progress,0) * 100%);
+  background:linear-gradient(90deg,var(--hud),var(--sub));
+  box-shadow:0 0 10px rgba(88,225,255,.55);
+}
+/* C2-2：--phase-progress（app.js:45）接到当前动作阶段下方的推进条 */
+.action-phase.current{position:relative}
+.action-phase.current:after{
+  content:'';position:absolute;left:0;right:0;bottom:-4px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--hud),rgba(88,225,255,0));
+  transform:scaleX(var(--phase-progress,0));transform-origin:left;
+}
+
+/* C3：切工序 280ms 进出场（app.js selectNode 里加/去 .is-switching） */
+.chapter-heading,#work-panel,#shot-strip{
+  transition:opacity var(--d-base) var(--e-out),transform var(--d-base) var(--e-out);
+}
+#experience.is-switching .chapter-heading,
+#experience.is-switching #work-panel,
+#experience.is-switching #shot-strip{opacity:.35;transform:translateX(6px)}
+
+/* C4：镜头条按钮进场（app.js:53 每次重建自动触发，不改 JS） */
+@keyframes hud-in{
+  from{opacity:0;transform:translateY(6px)}
+  to{opacity:1;transform:none}
+}
+#shot-strip button{animation:hud-in .32s var(--e-out) both}
+
+/* C5：字幕换句 110ms 淡入（app.js:139 配合） */
+#caption{transition:opacity .11s linear}
+
+/* 数字抖动的收口：等宽数字 */
+#time,#node-count,#chapter-count{font-variant-numeric:tabular-nums}
+#seek{accent-color:var(--hud)}
+
+/* ---------- D. 布局回收：舞台 894 → 936（1280 宽） ---------- */
+/* 只作用 1101–1699，其余两档（≤1100 / ≥1700）保持原值 */
+@media(min-width:1101px) and (max-width:1699px){
+  :root{--panel-edge:320px;--stage-left:24px}
+  #work-panel{width:288px;right:20px}
+}
+
+/* ---------- E. 响应式三处硬伤 ---------- */
+/* E1：矮屏压缩上方区块（面板内部滚动已在 B 段全局打开） */
+@media(min-width:761px) and (max-height:760px){
+  #work-panel{padding:12px 14px}
+  .coverage-focus{margin-top:9px;margin-bottom:9px}
+  .handoff{margin-top:9px}
+  .purpose{margin-top:8px}
+  .plain{margin:8px 0 10px}
+}
+
+/* E2：≤450 镜头标题被 v4-additions.css:36 的 display:none 杀光（标题在 <small> 里，
+   见 app.js:53）→ 改为隐藏序号 <span>，保留标题 */
+@media(max-width:450px){
+  #shot-strip button>span{display:none}
+  #shot-strip button>small{
+    display:block;flex:1 1 auto;min-width:0;max-width:100%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  #shot-strip button{align-items:flex-end;background:rgba(9,23,38,.55)}
+  /* 万一某个镜头没有标题，退化为占位符，避免按钮变成空块（号码仍由 .shot-hud 的 01/06 提供） */
+  #shot-strip button>small:empty:before{content:'—';opacity:.55}
+}
+
+/* E3：≤760 面板固定 height:112px 与 display:block 冲突，内容溢出压到字幕
+   （v4-additions.css:29 的 height:112px + v4-additions.css:37 的 display:block）。
+   二选一：保留 display:block 与既有高度预算（112px 正好是"面板底 181"与"镜头条底 302"
+   之间的真实空档，改成 auto 会往上盖住镜头条），把溢出改为面板内部滚动，
+   并去掉手机上重复度最高的流程备注，腾出一行给主导岗位。 */
+@media(max-width:760px){
+  #work-panel{padding:7px 10px;max-height:none}
+  .workflow-notes{display:none}
+}
+
+/* ---------- prefers-reduced-motion：以上动效全部可关 ---------- */
+@media(prefers-reduced-motion:reduce){
+  #shot-strip button{animation:none}
+  .chapter-heading,#work-panel,#shot-strip,#caption{transition:none}
+  #experience.is-switching .chapter-heading,
+  #experience.is-switching #work-panel,
+  #experience.is-switching #shot-strip{opacity:1;transform:none}
+}

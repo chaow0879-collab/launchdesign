@@ -10,6 +10,9 @@ const byId=Object.fromEntries(nodes.map(n=>[n.id,n]));
 const audio=$('#narration');audio.preload='auto';
 const blobs=new Map();let index=0,scene,ready=false,playing=false,playGeneration=0,lastCaption='',lastFrame=0;
 let selected=false,virtualMode=false,virtualTime=0,virtualAnchor=0,soundBlocked=false,userMuted=false,mediaFailure=false,lastShot=-1,freeView=false,pendingSeek=null;
+// 动效开关：prefers-reduced-motion 一旦为真，所有 JS 触发的过渡都退化为瞬变
+const reduceMotion=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):{matches:false};
+let captionTimer=0;
 const escapes={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>escapes[c]);
 const format=s=>`${String(Math.floor((s||0)/60)).padStart(2,'0')}:${String(Math.floor((s||0)%60)).padStart(2,'0')}`;
@@ -18,7 +21,7 @@ const chapterEn=['DEFINE THE VISION','SHAPE THE CONCEPT','BUILD THE FORM','FEEL 
 const viewLabels={demand:['目标与边界','真实车型外观 · 教学示例'],concept:['比例与总布置','包络与布置叠加为教学示意'],cas:['数字造型','线框用于说明数字建模过程'],clay:['实体模型','材质模拟油泥表面'],classa:['曲面品质','灯光反射示意 · 非曲面检测结果'],engineering:['系统协同','内部系统示意 · 非该车实际工程数据'],validation:['验证与闭环','扫描与性能效果仅作教学示意'],launch:['技术成果','展示车型不代表龙创项目案例']};
 function roleEntry(g,n){return n.roleTasks?.find(r=>r.groupId===g);}
 function roleTask(g,n){return roleEntry(g,n)?.task||groups[g].purpose;}
-let lastAction='',lastPhase=-1;
+let lastAction='',lastPhase=-1,lastShotCount='',lastShotTitle='',lastShotDetail='';
 function renderCoverage(shot,a={}){
  const n=nodes[index],all=n.coverageDetails||[],byShot=all.filter(x=>x.shotIndices?.includes(shot));
  const byGroup=all.filter(x=>(a.groupIds||[]).includes(x.groupId));
@@ -31,6 +34,14 @@ function renderCoverage(shot,a={}){
   $('#coverage-task').textContent=item.task;$('#coverage-output').textContent=item.output;$('#coverage-purpose').textContent=item.purpose;
  }
  for(const el of document.querySelectorAll('#leads [data-role],#parallel [data-role]'))el.classList.toggle('shot-linked',(a.groupIds||byShot.map(x=>x.groupId)).includes(el.dataset.role));
+}
+// 主导/同步按当前镜头渲染；该镜头没有专属分工（derived:false）或无 shots 数据时回退节点级
+function renderRoles(shot){
+ const n=nodes[index],s=n.shots?.[shot];
+ const leads=s&&Array.isArray(s.leads)&&s.leads.length?s.leads:n.leads;
+ const parallel=s&&Array.isArray(s.parallel)&&s.parallel.length?s.parallel:n.parallel;
+ $('#leads').innerHTML=leads.map(g=>`<button class="lead-card" data-role="${g}" aria-label="查看${esc(groups[g].name)}在本步的作用"><small class="channel-name">${esc(groups[g].channel||'技术族')}</small><b>${esc(groups[g].name)}</b><span class="arrow">↗</span><p>${esc(roleTask(g,n))}</p></button>`).join('');
+ $('#parallel').innerHTML=parallel.map(g=>`<button class="parallel-chip" data-role="${g}" title="${esc(roleTask(g,n))}">${esc(groups[g].name)}</button>`).join('');
 }
 function updateAction(p){
  const a=scene?.getActionInfo?.();if(!a)return;
@@ -45,12 +56,15 @@ function updateAction(p){
  document.documentElement.style.setProperty('--phase-progress',(p*3)%1);
  const shot=a.shotIndex??Math.min(5,Math.floor(p*6)),count=a.shotCount||6;
  document.documentElement.style.setProperty('--shot-progress',String((p*count)%1));
- if($('#shot-count'))$('#shot-count').textContent=`${String(shot+1).padStart(2,'0')} / ${String(count).padStart(2,'0')}`;
- if($('#shot-title'))$('#shot-title').textContent=a.shotTitle||phases[pi];
- if($('#shot-detail'))$('#shot-detail').textContent=a.shotDetail||a.detail||'';
+ const sc=`${String(shot+1).padStart(2,'0')} / ${String(count).padStart(2,'0')}`;
+ if(sc!==lastShotCount){lastShotCount=sc;if($('#shot-count'))$('#shot-count').textContent=sc;}
+ const st=a.shotTitle||phases[pi];
+ if(st!==lastShotTitle){lastShotTitle=st;if($('#shot-title'))$('#shot-title').textContent=st;}
+ const sd=a.shotDetail||a.detail||'';
+ if(sd!==lastShotDetail){lastShotDetail=sd;if($('#shot-detail'))$('#shot-detail').textContent=sd;}
  if(shot!==lastShot&&$('#shot-strip')){
   const shotNames=Array.from({length:count},(_,i)=>scene?.shotMeta?.(nodes[index].id,i)||cinematicPlan.nodes.find(x=>x.id===nodes[index].id)?.shots?.[i]||{});
-  $('#shot-strip').innerHTML=Array.from({length:count},(_,i)=>`<button data-shot="${i}" class="${i===shot?'active':i<shot?'done':''}" title="${esc(shotNames[i]?.detail||'')}" aria-label="第${i+1}镜头：${esc(shotNames[i]?.title||'')}，点击继续播放" ${i===shot?'aria-current="true"':''}><span>${String(i+1).padStart(2,'0')}</span><small>${esc(shotNames[i]?.title||'')}</small></button>`).join('');renderCoverage(shot,a);lastShot=shot;
+  $('#shot-strip').innerHTML=Array.from({length:count},(_,i)=>`<button data-shot="${i}" class="${i===shot?'active':i<shot?'done':''}" title="${esc(shotNames[i]?.detail||'')}" aria-label="第${i+1}镜头：${esc(shotNames[i]?.title||'')}，点击继续播放" ${i===shot?'aria-current="true"':''}><span>${String(i+1).padStart(2,'0')}</span><small>${esc(shotNames[i]?.title||'')}</small></button>`).join('');renderRoles(shot);renderCoverage(shot,a);lastShot=shot;
  }
 }
 function duration(){return Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:audioData[nodes[index].id]?.duration||0;}
@@ -73,6 +87,7 @@ function clipURL(id){
 function selectNode(i,{auto=true}={}){
  const target=Math.max(0,Math.min(nodes.length-1,i));
  if(selected&&target===index){if(auto&&!playing)start();return;}
+ const switching=$('#experience');if(switching&&!reduceMotion.matches)switching.classList.add('is-switching');
  playGeneration++;audio.pause();index=target;selected=true;virtualMode=false;virtualTime=0;virtualAnchor=performance.now();mediaFailure=false;pendingSeek=0;
  const n=nodes[index];lastCaption='';lastAction='';lastShot=-1;closeRole();freeView=false;syncCameraMode();
  $('#work-panel').scrollTop=0;
@@ -81,8 +96,7 @@ function selectNode(i,{auto=true}={}){
  $('#chapter-title').textContent=n.chapter.title;$('#chapter-subtitle').textContent=n.chapter.subtitle;$('#relationship').textContent=n.chapter.relationship;
  $('#node-count').textContent=`${String(index+1).padStart(2,'0')} / ${nodes.length}`;$('#step-title').textContent=n.title;
  for(const k of ['professional','plain','goal','input','output'])$('#'+k).textContent=n[k];
- $('#leads').innerHTML=n.leads.map(g=>`<button class="lead-card" data-role="${g}" aria-label="查看${esc(groups[g].name)}在本步的作用"><small class="channel-name">${esc(groups[g].channel||'技术族')}</small><b>${esc(groups[g].name)}</b><span class="arrow">↗</span><p>${esc(roleTask(g,n))}</p></button>`).join('');
- $('#parallel').innerHTML=n.parallel.map(g=>`<button class="parallel-chip" data-role="${g}" title="${esc(roleTask(g,n))}">${esc(groups[g].name)}</button>`).join('');
+ renderRoles(0);
  const coverage=n.coverageDetails||[];
  if($('#coverage-toggle')){$('#coverage-toggle').textContent=`本步 ${coverage.length} 项专业工作`;$('#coverage-toggle').setAttribute('aria-expanded','false');}
  if($('#coverage-list')){$('#coverage-list').hidden=true;$('#coverage-list').innerHTML=coverage.map(c=>`<details><summary>${esc(groups[c.groupId]?.name)} · ${esc(c.title)}</summary><p>${esc(c.task)}</p><p><b>交付：</b>${esc(c.output)}</p><p><b>目的：</b>${esc(c.purpose)}</p></details>`).join('');}
@@ -95,6 +109,7 @@ function selectNode(i,{auto=true}={}){
  $('#prev').disabled=index===0;$('#next').disabled=index===nodes.length-1;
  scene?.setNode(n.id);updateProgress();
  if(auto)start();
+ if(switching&&switching.classList.contains('is-switching'))requestAnimationFrame(()=>requestAnimationFrame(()=>switching.classList.remove('is-switching')));
 }
 async function start(){
  if(!ready)return;
@@ -136,14 +151,22 @@ function updateProgress(){
  const timeline=audioData[nodes[index].id]?.segments||[];
  let si=0;for(let i=0;i<timeline.length;i++){if(t>=timeline[i].start)si=i;}
  const seg=timeline[si];
- const caption=seg?.captionText||sentenceAt(nodes[index],p);if(caption!==lastCaption){$('#caption').textContent=caption;lastCaption=caption;}
+ const caption=seg?.captionText||sentenceAt(nodes[index],p);
+ if(caption!==lastCaption){
+  lastCaption=caption;const cap=$('#caption');
+  if(cap){
+   clearTimeout(captionTimer);
+   if(reduceMotion.matches){cap.style.opacity='1';cap.textContent=caption;}
+   else{cap.style.opacity='0';captionTimer=setTimeout(()=>{cap.textContent=caption;cap.style.opacity='1';},110);}
+  }
+ }
  const local=seg?Math.max(0,Math.min(.999999,(t-seg.start)/Math.max(.1,seg.end-seg.start))):0;
  const actionProgress=seg?(si+local)/timeline.length:p;
  document.documentElement.style.setProperty('--node-progress',p);
  scene?.setTime(nodes[index].id,t);updateAction(actionProgress);
 }
 function advance(){if(!playing)return;if(index<nodes.length-1)selectNode(index+1);else{pause();$('#status').textContent='全程讲解完成 · 可选择任意节点重看';}}
-function tick(t){if(t-lastFrame>30){updateProgress();lastFrame=t;if(playing&&virtualMode&&currentTime()>=duration())advance();}requestAnimationFrame(tick);}
+function tick(t){if(t-lastFrame>16){updateProgress();lastFrame=t;if(playing&&virtualMode&&currentTime()>=duration())advance();}requestAnimationFrame(tick);}
 $('#play').addEventListener('click',()=>playing?pause():start());
 $('#prev').addEventListener('click',()=>selectNode(index-1));$('#next').addEventListener('click',()=>selectNode(index+1));
 $('#steps').addEventListener('click',e=>{const b=e.target.closest('[data-node]');if(b)selectNode(nodes.findIndex(n=>n.id===b.dataset.node));});
