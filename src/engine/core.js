@@ -45,6 +45,11 @@ export function createCore(canvas) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = .78;
+// 现场调光口子：URL 加 ?exp=0.9 可临时覆盖曝光（0.4~1.6），不改代码就能定亮度
+{
+  const _e = Number(new URLSearchParams(location.search).get('exp'));
+  if (Number.isFinite(_e) && _e > 0) renderer.toneMappingExposure = Math.min(1.6, Math.max(.3, _e));
+}
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.localClippingEnabled = true;
   const scene = new THREE.Scene();
