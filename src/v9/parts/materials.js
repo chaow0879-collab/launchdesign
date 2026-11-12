@@ -6,6 +6,7 @@
 
 export function createMaterials(THREE, labels) {
   const {Color} = THREE;
+  const HAS_ANISO = 'anisotropy' in new THREE.MeshPhysicalMaterial();
 
   const COLORS = {
     alu: 0xc4ccd2, castAlu: 0xa2aeb8, darkAlu: 0x606f7b, deepAlu: 0x3f4c56,
@@ -84,7 +85,7 @@ export function createMaterials(THREE, labels) {
         if (spec.clearcoat) { params.clearcoat = spec.clearcoat; params.clearcoatRoughness = spec.clearcoatRoughness ?? .1; }
         if (spec.sheen) { params.sheen = spec.sheen; params.sheenRoughness = spec.sheenRoughness ?? .85; params.sheenColor = new Color(opts.sheenColor ?? 0xdfe8ee); }
         if (spec.ior !== undefined) params.ior = opts.ior ?? spec.ior;
-        if (spec.anisotropy && 'anisotropy' in new THREE.MeshPhysicalMaterial()) {
+        if (spec.anisotropy && HAS_ANISO) {
           params.anisotropy = opts.anisotropy ?? spec.anisotropy;
           params.anisotropyRotation = opts.anisotropyRotation ?? .6;
         }
