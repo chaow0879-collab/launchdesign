@@ -96,8 +96,8 @@ export function createMaterials(THREE, labels) {
         if (opts.side !== undefined) params.side = opts.side;
         if (opts.flatShading) params.flatShading = true;
         if (opts.emissive !== undefined) { params.emissive = new Color(opts.emissive); params.emissiveIntensity = opts.emissiveIntensity ?? .6; }
-        // 贴图：opts.textures 可覆盖档位默认；opts.map 直接给 Texture
-        const texSpec = opts.textures !== undefined ? opts.textures : (spec.tex || {});
+        // 贴图：opts.textures 可覆盖档位默认（传 null / {} 表示不要贴图）；opts.map 直接给 Texture
+        const texSpec = opts.textures === undefined ? (spec.tex || {}) : (opts.textures || {});
         for (const [slot, sp] of Object.entries(texSpec)) {
           if (!sp) continue;
           params[slot] = Array.isArray(sp) ? texOf(sp) : sp;

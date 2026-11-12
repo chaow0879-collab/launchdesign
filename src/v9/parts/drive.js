@@ -49,7 +49,7 @@ export function buildDriveUnit(ctx, opts = {}) {
       const a = i / 10 * Math.PI * 2;
       ring.push({p: [Math.cos(a) * rMotor * .85, Math.sin(a) * rMotor * .85, z + s * .013], r: [0, 0, 0]});
     }
-    const boltRing = F.boltArray(P, ring, {d: 6 * MM, len: 10 * MM, threaded: false, name: 'bell-bolts'});
+    const boltRing = F.boltArray(P, ring, {d: 6 * MM, headOnly: true, flange: false, name: 'bell-bolts'});
     motor.add(boltRing);
   }
 
@@ -76,7 +76,7 @@ export function buildDriveUnit(ctx, opts = {}) {
     shaft.rotation.x = Math.PI / 2;
     shaft.position.set(0, -.03, s * .17);
     shafts.push(shaft);
-    const boot = mesh(G.bellows(.032, .075, 5, .16, 14), P.tier('rubber', {color: 0x16191c, roughness: .88}), `cv-boot-${s > 0 ? 'L' : 'R'}`);
+    const boot = mesh(G.bellows(.032, .075, 4, .16, 10), P.tier('rubber', {color: 0x16191c, roughness: .88}), `cv-boot-${s > 0 ? 'L' : 'R'}`);
     boot.rotation.x = Math.PI / 2;
     boot.position.set(0, -.03, s * .245);
     boots.push(boot);

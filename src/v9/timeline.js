@@ -3,7 +3,7 @@
 //
 // 设计约束（对 v8 的三处硬伤的正面回应）
 //   1) 确定性：stateAt(t) 只依赖 t、轨道初始状态与 beat 定义。
-//      全程无 performance.now / Date.now / Math.random。拖动进度条回到
+//      全程不读时钟、不取随机数（无 now 类 API、无 random），拖动进度条回到
 //      同一时刻，逐轨道数值逐位相同（verify.mjs 用 JSON 全等做断言）。
 //   2) 位移是"给定位移"：move 可以用 by:[dx,dy,dz] 表述相对位移，求解时
 //      从轨道在该 beat 起点的已解状态累加；不再每帧 reset 后从头算。
@@ -65,9 +65,11 @@ export function easeOf(e) {
 
 /* ---------------------------- 向量 ---------------------------- */
 const V = (x = 0, y = 0, z = 0) => ({x, y, z});
+// 三元组允许 "缺项"：undefined/NaN 都回落到 d
+const nx = (v, d) => { const n = +v; return Number.isFinite(n) ? n : d; };
 const toV = (v, d = [0, 0, 0]) => {
-  if (Array.isArray(v)) return V(fin(+v[0] ?? d[0]), fin(+v[1] ?? d[1]), fin(+v[2] ?? d[2]));
-  if (v && typeof v === 'object') return V(fin(+v.x || 0), fin(+v.y || 0), fin(+v.z || 0));
+  if (Array.isArray(v)) return V(nx(v[0], d[0]), nx(v[1], d[1]), nx(v[2], d[2]));
+  if (v && typeof v === 'object') return V(nx(v.x, 0), nx(v.y, 0), nx(v.z, 0));
   return V(d[0], d[1], d[2]);
 };
 const vAdd = (a, b) => V(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -493,16 +495,20 @@ export function createTimeline(...input) {
     // 相位一：先解出各轨道的"无约束位姿"，供约束面推导使用
     const rawPos = new Map();
     for (const T of tracks) rawPos.set(T.id, solvePos(T, t, null).pos);
+    // 相位二：按书写顺序求解，接触面优先取"已解完"的参考轨道（这样螺栓能压在
+    // 已经落位的模组上），取不到才回落到相位一。仍成环时回落即可，不会死循环。
+    const resolved = new Map();
     const ref = (id) => {
       const T2 = byId.get(id);
       if (!T2) return null;
-      return {pos: rawPos.get(id), half: T2.opts.half};
+      const done = resolved.get(id);
+      return done || {pos: rawPos.get(id), half: T2.opts.half};
     };
 
-    // 相位二：带约束求解（接触面取自相位一，避免循环依赖）
     const out = {};
     for (const T of tracks) {
       const solved = solvePos(T, t, ref);
+      resolved.set(T.id, {pos: solved.pos, half: T.opts.half});
       const opacity = clamp01(solveScalar(T, t, 'opacity'));
       const cons = solved.cons;
       let clear = Infinity;

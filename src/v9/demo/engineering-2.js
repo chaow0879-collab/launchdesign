@@ -141,9 +141,9 @@ function driveUnits() {
     }));
     for (const [side, z] of [['L', 0.68], ['R', -0.68]]) {
       const zs = Math.sign(z);
-      list.push(staticUnit({id: `hub${tag}${side}`, kind: 'cyl', axis: 'z', r: 0.075, h: 0.14, pos: [x, yAxle, z], color: 0x9aa4ab, alpha: 0.95, opacity: 0}));
+      list.push(staticUnit({id: `hub${tag}${side}`, kind: 'cyl', axis: 'z', r: 0.075, h: 0.14, half: [0.075, 0.075, 0.07], pos: [x, yAxle, z], color: 0x9aa4ab, alpha: 0.95, opacity: 0}));
       list.push(staticUnit({
-        id: `shaft${tag}${side}`, kind: 'cyl', axis: 'z', r: 0.026, h: 0.44,
+        id: `shaft${tag}${side}`, kind: 'cyl', axis: 'z', r: 0.026, h: 0.44, half: [0.026, 0.026, 0.22],
         pos: [x, yAxle, z - zs * 0.38], color: 0xa9b5bf, alpha: 0.95, opacity: 0
       }));
       list.push(staticUnit({id: `wheel${tag}${side}`, kind: 'torus', r: 0.30, tube: 0.055, pos: [x, yAxle, z], color: 0x2c3640, alpha: 0.9, opacity: 0}));
@@ -155,7 +155,7 @@ function driveUnits() {
 function thermalUnits() {
   return [
     staticUnit({id: 'radiator', kind: 'box', size: [0.07, 0.50, 0.90], pos: [1.55, 0.55, 0], color: COL.blue, alpha: 0.28, edge: true, opacity: 0}),
-    staticUnit({id: 'pump', kind: 'cyl', axis: 'y', r: 0.05, h: 0.10, pos: [1.40, 0.36, 0.40], color: 0x5fb7ff, alpha: 0.95, opacity: 0}),
+    staticUnit({id: 'pump', kind: 'cyl', axis: 'y', r: 0.05, h: 0.10, half: [0.05, 0.05, 0.05], pos: [1.40, 0.36, 0.40], color: 0x5fb7ff, alpha: 0.95, opacity: 0}),
     staticUnit({id: 'loop', kind: 'tube', r: 0.017, path: LOOP, pos: [0, 0, 0], color: 0x3da0ff, alpha: 0.9, opacity: 0}),
     staticUnit({id: 'coolant', kind: 'dots', path: LOOP, n: 46, size: 0.020, stages: LOOP_STAGES, pos: [0, 0, 0], opacity: 0}),
     staticUnit({id: 'markerA', kind: 'marker', path: LOOP, offset: 0.00, size: 0.045, pos: [0, 0, 0], color: COL.orange, opacity: 0}),
@@ -173,7 +173,7 @@ function thermalUnits() {
 function principleUnits() {
   return [
     staticUnit({id: 'inverter', kind: 'box', size: [0.30, 0.14, 0.34], pos: [1.25, 0.465, 0], color: 0x404f5c, edge: true, alpha: 0.95, opacity: 0}),
-    staticUnit({id: 'motorR', kind: 'cyl', axis: 'z', r: 0.15, h: 0.34, pos: [-1.00, 0.425, 0], color: 0x8796a3, edge: true, alpha: 0.95, opacity: 0}),
+    staticUnit({id: 'motorR', kind: 'cyl', axis: 'z', r: 0.15, h: 0.34, half: [0.15, 0.15, 0.17], pos: [-1.00, 0.425, 0], color: 0x8796a3, edge: true, alpha: 0.95, opacity: 0}),
     staticUnit({id: 'cableF', kind: 'tube', r: 0.011, path: CABLE_F, pos: [0, 0, 0], color: COL.orange, glow: true, opacity: 0}),
     staticUnit({id: 'cableR', kind: 'tube', r: 0.011, path: CABLE_R, pos: [0, 0, 0], color: COL.orange, glow: true, opacity: 0}),
     staticUnit({id: 'cur0', kind: 'dots', path: BUS_PATH, n: 22, size: 0.018, pos: [0, 0, 0], color: COL.amber, opacity: 0, parent: 'pack'}),
@@ -249,28 +249,28 @@ function shot1() {
   S.at('pack', [
     appear({at: 0.30, dur: 0.70}),
     // 沿路径进入：先绕开后轮拱（z 外摆），再滑到车下
-    path({at: 1.10, dur: 3.00, ease: 'easeInOutCubic', points: [
+    path({at: 1.10, dur: 3.60, ease: 'easeInOutSine', points: [
       [3.60, 0.02, 0.00], [2.90, 0.02, 0.75], [1.90, 0.02, 1.05],
       [0.90, 0.02, 0.60], [0.20, 0.02, 0.12], [0.00, 0.02, 0.00]
     ]}),
     // 抬升：目标 0.72（会过冲），实际在地板下表面停住（0.541）
-    contact('floorSlab', {face: 'bottom', gap: 0.004, at: 4.10}),
-    move({at: 4.10, dur: 2.20, ease: 'easeInCubic', by: [0, 0.70, 0]})
+    contact('floorSlab', {face: 'bottom', gap: 0.004, at: 4.80}),
+    move({at: 4.80, dur: 2.20, ease: 'easeInCubic', by: [0, 0.70, 0]})
   ]);
   S.at('coldPlate', [
-    appear({at: 5.90, dur: 0.40}),
-    contact('pack', {face: 'top', plane: [0, 0.05, 0], gap: 0.004, at: 5.90}),
-    move({at: 5.90, dur: 1.00, ease: 'easeInOutCubic', by: [0, -0.22, 0]})
+    appear({at: 6.20, dur: 0.40}),
+    contact('pack', {face: 'top', plane: [0, 0.05, 0], gap: 0.004, at: 6.20}),
+    move({at: 6.20, dur: 1.00, ease: 'easeInOutCubic', by: [0, -0.22, 0]})
   ]);
-  S.at('seal', [appear({at: 5.55, dur: 0.55})]);
+  S.at('seal', [appear({at: 5.90, dur: 0.55})]);
   S.at('coolSerp', [
-    appear({at: 6.55, dur: 0.30}),
-    flow({at: 6.55, dur: 1.60, fill: 1.10, speed: 0.42, path: SERP})
+    appear({at: 7.10, dur: 0.30}),
+    flow({at: 7.10, dur: 1.80, fill: 1.10, speed: 0.42, path: SERP})
   ]);
   ['cond0', 'cond1', 'cond2'].forEach((id, i) => {
     S.at(id, [
-      appear({at: 7.30 + i * 0.25, dur: 0.35}),
-      scale({at: 7.30 + i * 0.25, dur: 0.35, from: 0.4, to: 1})
+      appear({at: 8.10 + i * 0.25, dur: 0.35}),
+      scale({at: 8.10 + i * 0.25, dur: 0.35, from: 0.4, to: 1})
     ]);
   });
   const built = S.build();
@@ -311,7 +311,7 @@ function shot2() {
     const x = MOD_X[i >> 1], z = MOD_Z[i & 1];
     const t0 = 0.55 + i * 0.26;
     S.at(`mod${i}`, [
-      appear({at: t0, dur: 0.22}),
+      appear({at: t0, dur: 0.30}),
       // 落到冷板上就停：目标 0.10，实际 0.138（模组底面 0.078 / 冷板面 0.074）
       contact('coldPlate', {face: 'top', gap: 0.004, at: t0 + 0.02}),
       move({at: t0, dur: 0.50, ease: 'easeInCubic', by: [0, -0.30, 0]})
@@ -319,17 +319,17 @@ function shot2() {
 
     const b0 = t0 + 0.50;
     S.at(`bolt${i}`, [
-      appear({at: b0, dur: 0.20}),
+      appear({at: b0, dur: 0.30}),
       // 轴向进给 + 6 圈旋入同时进行（两条通道并行，互不覆盖）
-      move({at: b0, dur: 1.25, ease: 'easeInOutCubic', by: [0, -0.10, 0]}),
-      rotate({at: b0, dur: 1.25, axis: 'y', turns: 6, ease: 'easeInOutCubic'}),
+      move({at: b0, dur: 1.60, ease: 'easeInOutCubic', by: [0, -0.10, 0]}),
+      rotate({at: b0, dur: 1.60, axis: 'y', turns: 6, ease: 'easeInOutCubic'}),
       contact(`mod${i}`, {face: 'top', gap: 0.002, at: b0})
     ], {origin: [x + 0.19, BOLT_START_Y, z], opacity0: 0});
   }
   for (let i = 0; i < 5; i++) {
     const t0 = 4.30 + i * 0.18;
     S.at(`ins${i}`, [
-      appear({at: t0, dur: 0.25}),
+      appear({at: t0, dur: 0.30}),
       contact('pack', {face: 'top', plane: [0, 0.05, 0], gap: 0.002, at: t0}),
       move({at: t0, dur: 0.50, ease: 'easeInOutCubic', by: [0, -0.30, 0]})
     ], {opacity0: 0});
@@ -444,18 +444,18 @@ function shot4() {
   S.at('lid', [], {origin: [0, 0.215, 0], opacity0: 0.5});
 
   const motors = [
-    ['R', 0.20],
-    ['F', 0.45]
+    ['R', 0.20, -0.72],
+    ['F', 0.45, -0.80]
   ];
-  for (const [tag, dly] of motors) {
+  for (const [tag, dly, drop] of motors) {
     S.at(`motor${tag}`, [
       appear({at: 0.20 + dly, dur: 0.45}),
       contact('subframe', {face: 'top', gap: 0.006, at: 0.55 + dly}),
-      move({at: 0.55 + dly, dur: 1.50, ease: 'easeInOutCubic', by: [0, -0.72, 0]})
+      move({at: 0.55 + dly, dur: 1.50, ease: 'easeInOutCubic', by: [0, drop, 0]})
     ], {opacity0: 0});
     S.at(`inv${tag}`, [
       appear({at: 0.30 + dly, dur: 0.45}),
-      move({at: 0.55 + dly, dur: 1.50, ease: 'easeInOutCubic', by: [0, -0.72, 0]})
+      move({at: 0.55 + dly, dur: 1.50, ease: 'easeInOutCubic', by: [0, drop, 0]})
     ], {opacity0: 0});
     // 半轴：从电驱侧推出，插进轮毂到底停住
     for (const [side, z] of [['L', 0.68], ['R', -0.68]]) {
@@ -493,7 +493,7 @@ function shot5() {
   S.addAll(structure(true));
   S.addAll(packUnits({withModules: true, withBolts: true, withLid: true}));
   S.addAll(thermalUnits());
-  S.add(staticUnit({id: 'motorR5', kind: 'cyl', axis: 'z', r: 0.15, h: 0.34, pos: [-1.00, 0.425, 0], color: 0x8796a3, edge: true, alpha: 0.95, opacity: 0}));
+  S.add(staticUnit({id: 'motorR5', kind: 'cyl', axis: 'z', r: 0.15, h: 0.34, half: [0.15, 0.15, 0.17], pos: [-1.00, 0.425, 0], color: 0x8796a3, edge: true, alpha: 0.95, opacity: 0}));
 
   S.at('pack', [appear({at: 0.00, dur: 0.45})], {origin: [0, PACK_Y, 0], opacity0: 0});
   S.at('coldPlate', [appear({at: 0.00, dur: 0.45})], {origin: [0, PLATE_Y, 0], opacity0: 0});
@@ -610,10 +610,10 @@ function shot6() {
   ], {opacity0: 0});
   S.at('scan', [
     appear({at: 7.20, dur: 0.30}),
-    move({at: 7.30, dur: 1.00, ease: 'easeInOutSine', to: [1.20, 0.62, 0]}),
-    dissolve({at: 8.30, dur: 0.30})
+    move({at: 7.30, dur: 1.80, ease: 'easeInOutSine', to: [1.20, 0.62, 0]}),
+    dissolve({at: 9.20, dur: 0.30})
   ], {origin: [-1.20, 0.62, 0], opacity0: 0});
-  S.at('okRing', [appear({at: 8.20, dur: 0.40}), scale({at: 8.20, dur: 0.60, from: 0.5, to: 1.2})]);
+  S.at('okRing', [appear({at: 9.10, dur: 0.40}), scale({at: 9.10, dur: 0.60, from: 0.5, to: 1.2})]);
 
   const built = S.build();
   return {

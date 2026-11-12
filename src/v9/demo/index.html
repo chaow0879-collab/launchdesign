@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>engineering-2 · T 时间轴 Demo（v9）</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #070b12; color: #dce9f5;
+    font: 13px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; left: 20px; top: 16px; max-width: 46vw; pointer-events: none; }
+  #hud h1 { margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: .04em; color: #eaf6ff; }
+  #hud .sub { color: #7fb4d4; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  #shot-detail { margin-top: 6px; color: #9fb6c8; font-size: 12px; max-width: 40vw; }
+  #bar { position: fixed; left: 20px; right: 20px; bottom: 16px; display: flex; flex-direction: column; gap: 8px;
+    padding: 10px 12px; border-radius: 12px; background: rgba(8, 16, 26, .72);
+    border: 1px solid rgba(88, 225, 255, .18); backdrop-filter: blur(8px); }
+  #tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  #tabs button, #play { cursor: pointer; color: #cfe6f5; background: rgba(88, 225, 255, .08);
+    border: 1px solid rgba(88, 225, 255, .22); border-radius: 7px; padding: 4px 9px; font: inherit; font-size: 12px; }
+  #tabs button:hover, #play:hover { background: rgba(88, 225, 255, .18); }
+  #tabs button.on { background: rgba(88, 225, 255, .3); border-color: rgba(88, 225, 255, .7); color: #fff; }
+  #row { display: flex; align-items: center; gap: 10px; }
+  #scrub { flex: 1; accent-color: #58e1ff; }
+  #time { font-variant-numeric: tabular-nums; color: #8fd6ee; min-width: 108px; text-align: right; }
+  #panel { position: fixed; right: 20px; top: 16px; width: 300px; max-height: 46vh; overflow: auto;
+    padding: 10px 12px; border-radius: 12px; background: rgba(8, 16, 26, .6);
+    border: 1px solid rgba(88, 225, 255, .14); font-size: 12px; }
+  #panel h2 { margin: 0 0 6px; font-size: 11px; letter-spacing: .16em; color: #6fa8c6; text-transform: uppercase; font-weight: 600; }
+  #panel ul { list-style: none; margin: 0 0 10px; padding: 0; }
+  #panel li { padding: 2px 0; color: #b9d6e6; font-variant-numeric: tabular-nums; }
+  #panel li.dim { color: #566b7a; }
+  body.no-ui #hud, body.no-ui #bar, body.no-ui #panel { display: none; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<header id="hud">
+  <div class="sub">v9 · T 时间轴框架 / engineering-2</div>
+  <h1 id="shot-name">engineering-2</h1>
+  <div id="shot-detail"></div>
+</header>
+
+<aside id="panel">
+  <h2>正在贴面（contact.hit）</h2>
+  <ul id="contacts"></ul>
+  <h2>正在流动（flow）</h2>
+  <ul id="flows"></ul>
+</aside>
+
+<footer id="bar">
+  <div id="tabs"></div>
+  <div id="row">
+    <button id="play">暂停</button>
+    <input id="scrub" type="range" min="0" max="1" step="0.01" value="0">
+    <div id="time">0.00 / 0.00 s</div>
+  </div>
+</footer>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>

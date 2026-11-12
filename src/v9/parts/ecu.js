@@ -12,6 +12,7 @@ export function buildEcu(ctx, opts = {}) {
   // ---------- 下壳体：底板 + 四壁（不是实心块，能看见内部 PCB）----------
   const base = new THREE.Group(); base.name = 'base'; g.add(base);
   const floor = mesh(G.rplate(W, D, .004, {r: .008, edge: .0005, seg: 2}), P.tier('shell', {color: C.alu, roughness: .42}), 'base-floor', base);
+  floor.rotation.x = -Math.PI / 2;
   floor.position.y = .002;
   const walls = [];
   for (const s of [-1, 1]) {
@@ -24,27 +25,28 @@ export function buildEcu(ctx, opts = {}) {
   }
   // 内部加强柱（压铸件的工艺特征）
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const boss = mesh(G.lathe([[.004, 0], [.0075, 0], [.0075, .02], [.004, .02], [.004, 0]], 10, {angle: 45}), P.tier('shell', {color: C.castAlu}), 'boss', base);
+    const boss = mesh(G.lathe([[.004, 0], [.0075, 0], [.0075, .02], [.004, .02], [.004, 0]], 8, {angle: 45}), P.tier('shell', {color: C.castAlu}), 'boss', base);
     boss.position.set(sx * (W / 2 - .016), .006, sz * (D / 2 - .016));
   }
 
   // ---------- PCB：板 + 芯片 + 电容 + 连接器 ----------
   const pcbGrp = new THREE.Group(); pcbGrp.name = 'pcb'; pcbGrp.position.y = .012; base.add(pcbGrp);
   const board = mesh(G.rplate(W - .022, D - .020, .0016, {r: .004, edge: .0003, seg: 2}), P.tier('pcb', {color: 0xffffff, metalness: .25}), 'board', pcbGrp);
+  board.rotation.x = -Math.PI / 2;
   const chips = [];
-  const chipSpec = [[-.045, -.018, .022, .022], [-.010, -.018, .018, .018], [.020, -.020, .026, .018], [.050, .010, .014, .014], [-.050, .020, .012, .012]];
+  const chipSpec = [[-.045, -.018, .022, .022], [-.010, -.018, .018, .018], [.020, -.020, .026, .018], [.050, .010, .014, .014]];
   for (const [x, z, w, d] of chipSpec) {
     const chip = mesh(G.cbox(w, .0035, d, .0004), P.tier('plastic', {color: 0x14181b, roughness: .5}), 'chip', pcbGrp);
     chip.position.set(x, .0026, z);
     chips.push(chip);
     const pins = mesh(G.mergeGeos([
-      {geo: G.cbox(w + .004, .0008, .0012, .0001), matrix: new THREE.Matrix4().makeTranslation(x, .0012, z - d / 2 - .0012)},
-      {geo: G.cbox(w + .004, .0008, .0012, .0001), matrix: new THREE.Matrix4().makeTranslation(x, .0012, z + d / 2 + .0012)}
+      {geo: G.box(w + .004, .0008, .0012), matrix: new THREE.Matrix4().makeTranslation(x, .0012, z - d / 2 - .0012)},
+      {geo: G.box(w + .004, .0008, .0012), matrix: new THREE.Matrix4().makeTranslation(x, .0012, z + d / 2 + .0012)}
     ]), P.tier('machined', {color: 0xc9d2d8}), 'chip-pins', pcbGrp);
   }
   const caps = [];
-  for (let i = 0; i < 5; i++) {
-    const cap = mesh(G.rcyl(.0035, .006, {seg: 8}), P.tier('machined', {color: 0x8a949c}), 'capacitor', pcbGrp);
+  for (let i = 0; i < 4; i++) {
+    const cap = mesh(G.rcyl(.0035, .006, {seg: 6}), P.tier('machined', {color: 0x8a949c}), 'capacitor', pcbGrp);
     cap.position.set(.048 - i * .011, .004, -.040);
     caps.push(cap);
   }
@@ -55,7 +57,7 @@ export function buildEcu(ctx, opts = {}) {
   const connectors = [], pins = [];
   for (let k = 0; k < 2; k++) {
     const zc = (k ? 1 : -1) * .030;
-    const shroud = mesh(G.rbox(.030, .024, .052, .0035, 2), P.tier('plastic', {color: 0x2b3238, roughness: .58}), `connector-${k}`, g);
+    const shroud = mesh(G.rbox(.030, .024, .052, .0035, 1), P.tier('plastic', {color: 0x2b3238, roughness: .58}), `connector-${k}`, g);
     shroud.position.set(W / 2 + .008, .022, zc);
     connectors.push(shroud);
     const pf = F.pinField(P, {rows: 2, cols: 8, pitch: 3.2 * MM, pin: 1.1 * MM, len: 11 * MM});
@@ -64,7 +66,7 @@ export function buildEcu(ctx, opts = {}) {
     g.add(pf);
     pins.push(pf);
     // 防呆键与卡扣
-    const key = mesh(G.cbox(.006, .01, .008, .0006), P.tier('plastic', {color: 0x3b444b}), 'connector-key', g);
+    const key = mesh(G.box(.006, .01, .008), P.tier('plastic', {color: 0x3b444b}), 'connector-key', g);
     key.position.set(W / 2 + .022, .034, zc + (k ? .018 : -.018));
     // 线束出线（橡胶护套）
     const grommet = mesh(G.lathe([[.010, 0], [.016, 0], [.016, .012], [.010, .012], [.010, 0]], 12, {angle: 50}), P.tier('rubber', {color: 0x1a1e22}), 'grommet', g);
@@ -75,16 +77,18 @@ export function buildEcu(ctx, opts = {}) {
   // ---------- 上盖 + 散热筋 + 密封胶条 ----------
   const lid = new THREE.Group(); lid.name = 'lid'; g.add(lid);
   const lidPlate = mesh(G.rplate(W + .002, D + .002, .004, {r: .009, edge: .0006, seg: 2}), P.tier('shell', {color: C.alu, roughness: .38}), 'lid-plate', lid);
+  lidPlate.rotation.x = -Math.PI / 2;
   lidPlate.position.y = .032;
   // 散热筋（压铸鳍片，比一整块平板强得多）
   const finEntries = [];
-  for (let i = 0; i < 9; i++) {
-    finEntries.push({geo: G.cbox(.005, .016, D - .03, .0008), matrix: new THREE.Matrix4().makeTranslation(-.062 + i * .0155, .042, 0)});
+  for (let i = 0; i < 8; i++) {
+    finEntries.push({geo: G.cbox(.005, .016, D - .03, .0008), matrix: new THREE.Matrix4().makeTranslation(-.062 + i * .0175, .042, 0)});
   }
   const fins = mesh(G.mergeGeos(finEntries), P.tier('shell', {color: C.alu, roughness: .44}), 'heatsink-fins', lid);
   const sinkBase = mesh(G.rplate(W - .01, D - .01, .003, {r: .006, edge: .0004, seg: 2}), P.tier('shell', {color: C.castAlu, roughness: .46}), 'heatsink-base', lid);
+  sinkBase.rotation.x = -Math.PI / 2;
   sinkBase.position.y = .0355;
-  const gasket = mesh(G.seam([[W / 2, .028, -D / 2 + .004], [W / 2, .028, D / 2 - .004], [-W / 2, .028, D / 2 - .004], [-W / 2, .028, -D / 2 + .004], [W / 2, .028, -D / 2 + .004]], {width: .0035, depth: .001, segs: 40}), P.tier('rubber', {color: 0x191d20}), 'gasket', g);
+  const gasket = mesh(G.seam([[W / 2, .028, -D / 2 + .004], [W / 2, .028, D / 2 - .004], [-W / 2, .028, D / 2 - .004], [-W / 2, .028, -D / 2 + .004], [W / 2, .028, -D / 2 + .004]], {width: .0035, depth: .001, segs: 24}), P.tier('rubber', {color: 0x191d20}), 'gasket', g);
 
   // ---------- 安装耳 + 螺栓 ----------
   const ears = [], bolts = [];
@@ -92,7 +96,7 @@ export function buildEcu(ctx, opts = {}) {
     const ear = mesh(G.cbox(.020, .006, .018, .0012), P.tier('shell', {color: C.castAlu}), 'mount-ear', g);
     ear.position.set(sx * (W / 2 - .004), .006, sz * (D / 2 - .002));
     ears.push(ear);
-    const b = F.bolt(P, {d: 6 * MM, len: 16 * MM, threaded: false});
+    const b = F.bolt(P, {d: 6 * MM, len: 16 * MM, threaded: false, flange: false});
     b.position.set(sx * (W / 2 - .004), .009, sz * (D / 2 - .002));
     g.add(b); bolts.push(b);
   }
@@ -106,7 +110,7 @@ export function buildEcu(ctx, opts = {}) {
   serial.position.set(.052, .0472, -.030); serial.rotation.x = -Math.PI / 2;
   const leds = [];
   for (let i = 0; i < 3; i++) {
-    const led = mesh(G.cbox(.008, .003, .005, .0006), P.emissive([0x5dff9a, 0x58e1ff, 0xffb547][i], 1.9, .95), `led-${i}`, g);
+    const led = mesh(G.box(.008, .003, .005), P.emissive([0x5dff9a, 0x58e1ff, 0xffb547][i], 1.9, .95), `led-${i}`, g);
     led.position.set(-.072 + i * .014, .0475, -.046);
     leds.push(led);
   }

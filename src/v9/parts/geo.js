@@ -69,9 +69,85 @@ export function createGeo(THREE) {
     return flat ? flatShade(g) : g;
   }
 
-  // ---------- 倒角块（机加工件：45° 倒棱 + 硬边）----------
-  function cbox(w, h, d, c = .0015, {smooth = false} = {}) {
-    return rbox(w, h, d, c, 1, {flat: !smooth});
+  // ---------- 倒角块（机加工件：45° 倒棱 + 硬边，44 三角面）----------
+  // 6 个面 + 12 条倒棱 + 8 个角三角，正好 44 面；比圆角盒省 60% 面数，是倒角钣金/铸件的主力。
+  function chamferBox(w, h, d, c = .0015) {
+    const hx = w / 2, hy = h / 2, hz = d / 2;
+    c = Math.max(1e-6, Math.min(c, hx * .98, hy * .98, hz * .98));
+    const ix = hx - c, iy = hy - c, iz = hz - c;
+    const key = (sx, sy, sz) => `${sx}${sy}${sz}`;
+    const PX = {}, PY = {}, PZ = {};
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const k = key(sx, sy, sz);
+      PX[k] = [sx * hx, sy * iy, sz * iz];
+      PY[k] = [sx * ix, sy * hy, sz * iz];
+      PZ[k] = [sx * ix, sy * iy, sz * hz];
+    }
+    const pos = [];
+    const tri = (a, b, cc) => { pos.push(a[0], a[1], a[2], b[0], b[1], b[2], cc[0], cc[1], cc[2]); };
+    const quad = (a, b, cc, dd) => { tri(a, b, cc); tri(a, cc, dd); };
+    for (const s of [-1, 1]) {
+      // ±X 面
+      quad(PX[key(s, -1, -1)], PX[key(s, -1, 1)], PX[key(s, 1, 1)], PX[key(s, 1, -1)]);
+      // ±Y 面
+      quad(PY[key(-1, s, -1)], PY[key(1, s, -1)], PY[key(1, s, 1)], PY[key(-1, s, 1)]);
+      // ±Z 面
+      quad(PZ[key(-1, -1, s)], PZ[key(-1, 1, s)], PZ[key(1, 1, s)], PZ[key(1, -1, s)]);
+    }
+    // 12 条倒棱
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) quad(PX[key(sx, sy, -1)], PX[key(sx, sy, 1)], PY[key(sx, sy, 1)], PY[key(sx, sy, -1)]);
+    for (const sy of [-1, 1]) for (const sz of [-1, 1]) quad(PY[key(-1, sy, sz)], PY[key(1, sy, sz)], PZ[key(1, sy, sz)], PZ[key(-1, sy, sz)]);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) quad(PX[key(sx, -1, sz)], PX[key(sx, 1, sz)], PZ[key(sx, 1, sz)], PZ[key(sx, -1, sz)]);
+    // 8 个角
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) tri(PX[key(sx, sy, sz)], PY[key(sx, sy, sz)], PZ[key(sx, sy, sz)]);
+    // 绕序统一朝外（凸体 + 原点在内部：面法线与面心同向即可）
+    const arr = pos;
+    for (let i = 0; i < arr.length; i += 9) {
+      const ax = arr[i], ay = arr[i + 1], az = arr[i + 2];
+      const bx = arr[i + 3], by = arr[i + 4], bz = arr[i + 5];
+      const cx = arr[i + 6], cy = arr[i + 7], cz = arr[i + 8];
+      const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const gx = (ax + bx + cx) / 3, gy = (ay + by + cy) / 3, gz = (az + bz + cz) / 3;
+      if (nx * gx + ny * gy + nz * gz < 0) {
+        // 交换 B/C
+        arr[i + 3] = cx; arr[i + 4] = cy; arr[i + 5] = cz;
+        arr[i + 6] = bx; arr[i + 7] = by; arr[i + 8] = bz;
+      }
+    }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(arr, 3));
+    // 简易投影 UV：取法线主轴，用另外两轴做平面投影（足够贴拉丝/铭牌贴图）
+    const n = arr.length / 3;
+    const uv = new Float32Array(n * 2);
+    for (let i = 0; i < arr.length; i += 9) {
+      const ax = arr[i], ay = arr[i + 1], az = arr[i + 2];
+      const bx = arr[i + 3], by = arr[i + 4], bz = arr[i + 5];
+      const cx = arr[i + 6], cy = arr[i + 7], cz = arr[i + 8];
+      const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+      const nx = Math.abs(uy * vz - uz * vy), ny = Math.abs(uz * vx - ux * vz), nz = Math.abs(ux * vy - uy * vx);
+      const o = Math.floor(i / 3);
+      for (let k = 0; k < 3; k++) {
+        const px = arr[i + k * 3], py = arr[i + k * 3 + 1], pz = arr[i + k * 3 + 2];
+        let u, v;
+        if (nx >= ny && nx >= nz) { u = pz / Math.max(1e-6, d) + .5; v = py / Math.max(1e-6, h) + .5; }
+        else if (ny >= nz) { u = px / Math.max(1e-6, w) + .5; v = pz / Math.max(1e-6, d) + .5; }
+        else { u = px / Math.max(1e-6, w) + .5; v = py / Math.max(1e-6, h) + .5; }
+        uv[(o + k) * 2] = u; uv[(o + k) * 2 + 1] = v;
+      }
+    }
+    g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    return g;
+  }
+
+  function cbox(w, h, d, c = .0015) {
+    return chamferBox(w, h, d, c);
+  }
+
+  // 最省的实心块：12 面（只给 1cm 以下的小特征用，肉眼看不见倒角）
+  function box(w, h, d) {
+    return new THREE.BoxGeometry(w, h, d);
   }
 
   function flatShade(g) {
@@ -109,13 +185,14 @@ export function createGeo(THREE) {
   }
 
   // 带孔板：holes = [{x,y,r}] 或 [{x,y,w,h,r}]
+  // 与 rplate 保持同一口径：外形 w×h、厚度 t（bevel 向内让，不额外长胖）
   function rplateHoles(w, h, t, holes = [], {r = .006, edge = .0006, seg = 3} = {}) {
-    const body = roundRectPath(w, h, r);
+    const e = Math.min(edge, t * .45, r * .75);
+    const body = roundRectPath(Math.max(.001, w - 2 * e), Math.max(.001, h - 2 * e), Math.max(.0005, r - e));
     for (const hole of holes) {
       const p = new Path();
       if (hole.r !== undefined && hole.w === undefined) {
-        const rr = hole.r;
-        p.absarc(hole.x, hole.y, rr, 0, TAU, true);
+        p.absarc(hole.x, hole.y, hole.r, 0, TAU, true);
       } else {
         const hw = hole.w / 2, hh = hole.h / 2, hr = Math.min(hole.r ?? 0, hw, hh);
         p.moveTo(hole.x - hw + hr, hole.y - hh);
@@ -126,7 +203,7 @@ export function createGeo(THREE) {
       }
       body.holes.push(p);
     }
-    return extrude(body, Math.max(.0004, t), {bevel: edge, curveSegments: seg, bevelSegments: 1});
+    return extrude(body, Math.max(.0004, t - 2 * e), {bevel: e, curveSegments: seg, bevelSegments: 1});
   }
 
   // ---------- 扫掠型材（白车身梁、C 型槽、铝型材、门框）----------
@@ -245,9 +322,18 @@ export function createGeo(THREE) {
 
   // ---------- 车削件 ----------
   // points: [[r,y],...] 由下到上；seg 越小越省面。默认按 35° 折角拆硬边。
-  function lathe(points, seg = 20, {angle = 35, smooth = false, phiStart = 0, phiLength = TAU, flip = false} = {}) {
-    const pts2 = points.map(p => new THREE.Vector2(Math.max(1e-6, p[0]), p[1]));
-    const g = new LatheGeometry(pts2, Math.max(3, seg), phiStart, phiLength);
+  // 两端未封口（首尾半径>0）时自动补中心点做端盖：车削件必须是实心的，
+  // 否则管口会漏光、有符号体积也偏小（这个问题在 rcyl/波纹管上都被抓到过）。
+  function lathe(points, seg = 20, {angle = 35, smooth = false, phiStart = 0, phiLength = TAU, flip = false, caps = null} = {}) {
+    let pts = points.map(p => new THREE.Vector2(Math.max(0, p[0]), p[1]));
+    const closedProfile = pts.length > 2 && pts[0].distanceTo(pts[pts.length - 1]) < 1e-7;
+    const full = phiLength >= TAU - 1e-6;
+    if (!closedProfile && caps !== false && full) {
+      const head = pts[0], tail = pts[pts.length - 1];
+      if (head.x > 1e-6) pts.unshift(new THREE.Vector2(0, head.y));
+      if (tail.x > 1e-6) pts.push(new THREE.Vector2(0, tail.y));
+    }
+    const g = new LatheGeometry(pts, Math.max(3, seg), phiStart, phiLength);
     if (flip) { g.scale(-1, 1, 1); }
     g.computeVertexNormals();
     if (!smooth) return creaseNormals(g, angle);
@@ -356,17 +442,17 @@ export function createGeo(THREE) {
       // 背面朝 -z
       idx.push(nf + a, nf + d, nf + b, nf + a, nf + c, nf + d);
     }
-    // 边料：沿四条边界把前后两层缝起来
-    const rim = (list) => {
-      for (let k = 0; k < list.length - 1; k++) {
-        const a = list[k], b = list[k + 1];
-        idx.push(a, nf + a, nf + b, a, nf + b, b);
-      }
-    };
-    const top = [], bottom = [], left = [], right = [];
-    for (let i = 0; i <= segX; i++) { top.push(gridIdx(i, 0)); bottom.push(gridIdx(i, segZ)); }
-    for (let j = 0; j <= segZ; j++) { left.push(gridIdx(0, j)); right.push(gridIdx(segX, j)); }
-    rim(top); rim(bottom); rim(left); rim(right);
+    // 边料：沿边界一圈把前后两层缝起来。边界必须按 CCW 走一圈（俯视 +z），
+    // 否则四条边里有两条会反绕序，折边在背面剔除下直接消失（薄板会"漏边"）。
+    const loop = [];
+    for (let i = 0; i < segX; i++) loop.push(gridIdx(i, 0));                 // 下边 → +x
+    for (let j = 0; j < segZ; j++) loop.push(gridIdx(segX, j));             // 右边 → +y
+    for (let i = segX; i > 0; i--) loop.push(gridIdx(i, segZ));             // 上边 → -x
+    for (let j = segZ; j > 0; j--) loop.push(gridIdx(0, j));                // 左边 → -y
+    for (let k = 0; k < loop.length; k++) {
+      const a = loop[k], b = loop[(k + 1) % loop.length];
+      idx.push(a, nf + a, nf + b, a, nf + b, b);
+    }
     const g = new BufferGeometry();
     g.setAttribute('position', new Float32BufferAttribute(pos, 3));
     g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
@@ -519,7 +605,7 @@ export function createGeo(THREE) {
   // 这里只做几何：一个略低于表面的薄片，贴图在 labels.js 里生成。
 
   return {
-    clamp, rbox, cbox, flatShade, roundRectPath, extrude, rplate, rplateHoles,
+    clamp, rbox, cbox, box, chamferBox, flatShade, roundRectPath, extrude, rplate, rplateHoles,
     sweep, SECT, lathe, rcyl, tube, bellows, thread, spring, cable, seam,
     curvedPanel, bead,
     mergeGeos, creaseNormals, triCount, framesFor

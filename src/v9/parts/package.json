@@ -1,0 +1,7 @@
+{
+  "name": "@longchuang/v9-parts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "P 部件与模型：程序化汽车零件库（倒角/分材质/面板线/真连接件/程序化贴图）"
+}

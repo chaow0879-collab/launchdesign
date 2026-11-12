@@ -27,14 +27,14 @@ export function buildSeat(ctx, opts = {}) {
     rails.push(rail);
     // 滑轨锁止齿条（细齿，让侧面不再是光板）
     const teeth = [];
-    for (let i = 0; i < 9; i++) teeth.push({geo: G.cbox(.012, .003, .006, .0004), matrix: new THREE.Matrix4().makeTranslation(-.24 + i * .06, .058, z + s * .016)});
+    for (let i = 0; i < 9; i++) teeth.push({geo: G.box(.012, .003, .006), matrix: new THREE.Matrix4().makeTranslation(-.24 + i * .06, .058, z + s * .016)});
     mesh(G.mergeGeos(teeth), P.tier('machined', {color: C.darkSteel}), `rail-teeth-${s > 0 ? 'L' : 'R'}`);
   }
   // 前后安装脚 + 螺栓
   const feet = [], bolts = [];
   for (const s of [-1, 1]) for (const x of [-.24, .24]) {
     feet.push({geo: G.cbox(.07, .012, .08, .0012), matrix: new THREE.Matrix4().makeTranslation(x, .006, s * .17)});
-    const b = F.bolt(P, {d: 10 * MM, len: 18 * MM, name: 'bolt'});
+    const b = F.bolt(P, {d: 10 * MM, len: 18 * MM, threaded: false, flange: false, name: 'bolt'});
     b.position.set(x, .012, s * .17);
     b.rotation.x = Math.PI;
     g.add(b); bolts.push(b);
@@ -61,10 +61,10 @@ export function buildSeat(ctx, opts = {}) {
 
   // ---------- 座垫：发泡分层 + 侧翼 + 面套 + 缝线 ----------
   const cushion = new THREE.Group(); cushion.name = 'cushion'; g.add(cushion);
-  const cushionBase = mesh(G.rbox(.45, .072, .40, .026, 3), P.tier('shell', {color: 0x384048, metalness: .05, roughness: .7}), 'cushion-foam', cushion);
+  const cushionBase = mesh(G.rbox(.45, .072, .40, .026, 2), P.tier('shell', {color: 0x384048, metalness: .05, roughness: .7}), 'cushion-foam', cushion);
   cushionBase.position.set(0, .155, 0);
   // 面套上垫（比发泡略小，边缘能看到发泡与包边）
-  const topPad = mesh(G.rbox(.43, .022, .38, .014, 3), matFabric, 'cushion-cover', cushion);
+  const topPad = mesh(G.rbox(.43, .022, .38, .014, 2), matFabric, 'cushion-cover', cushion);
   topPad.position.set(0, .198, 0);
   const bolsters = [];
   for (const s of [-1, 1]) {
@@ -82,7 +82,7 @@ export function buildSeat(ctx, opts = {}) {
     const q = mesh(G.seam([[x, .207, -.17], [x, .209, 0], [x, .207, .17]], {width: .0024, depth: .0013, segs: 8}), matFabricDark, 'quilt-seam', cushion);
   }
   // 包边（滚边条）：沿座垫前沿一圈细管
-  const piping = mesh(G.cable([[-.21, .195, -.20], [-.21, .192, 0], [-.21, .195, .20]], .0045, {segs: 20, radial: 5}), matFabricDark, 'piping', cushion);
+  const piping = mesh(G.cable([[-.21, .195, -.20], [-.21, .192, 0], [-.21, .195, .20]], .0045, {segs: 12, radial: 4}), matFabricDark, 'piping', cushion);
   piping.position.x = 0;
 
   // ---------- 靠背：骨架 + 发泡 + 侧翼 + 腰托 ----------
@@ -93,7 +93,7 @@ export function buildSeat(ctx, opts = {}) {
   ], {r: .03, edge: .0005, seg: 2}), matSteel, 'back-shell', backrest);
   backShell.position.set(-.052, .26, 0);
   backShell.rotation.y = Math.PI / 2; backShell.rotation.z = Math.PI / 2;
-  const backPad = mesh(G.rbox(.09, .50, .42, .03, 3), matFabric, 'back-pad', backrest);
+  const backPad = mesh(G.rbox(.09, .50, .42, .03, 2), matFabric, 'back-pad', backrest);
   backPad.position.set(0, .27, 0);
   const backBolsters = [];
   for (const s of [-1, 1]) {
@@ -122,13 +122,13 @@ export function buildSeat(ctx, opts = {}) {
     recliners.push(disc);
   }
   const handle = mesh(G.sweep([[-.16, .16, .26], [-.14, .19, .29], [-.11, .205, .30]], G.SECT.rect(.028, .012), {segments: 6}), matPlastic, 'recline-handle', g);
-  const handleKnob = mesh(G.rbox(.034, .022, .034, .008, 2), matPlasticDark, 'handle-knob', g);
+  const handleKnob = mesh(G.cbox(.034, .022, .034, .005), matPlasticDark, 'handle-knob', g);
   handleKnob.position.set(-.11, .205, .30);
 
   // ---------- 头枕：发泡 + 两根导杆 + 塑料导套 ----------
   const headrest = new THREE.Group(); headrest.name = 'headrest'; headrest.position.set(-.30, .78, 0); headrest.rotation.z = .16; g.add(headrest);
-  const hrPad = mesh(G.rbox(.095, .155, .255, .038, 3), matFabric, 'headrest-pad', headrest);
-  const hrDark = mesh(G.rbox(.085, .135, .24, .03, 2), matFabricDark, 'headrest-insert', headrest);
+  const hrPad = mesh(G.rbox(.095, .155, .255, .038, 2), matFabric, 'headrest-pad', headrest);
+  const hrDark = mesh(G.cbox(.085, .135, .24, .006), matFabricDark, 'headrest-insert', headrest);
   hrDark.position.x = -.006;
   const posts = [], guides = [];
   for (const s of [-1, 1]) {

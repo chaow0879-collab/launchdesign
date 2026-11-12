@@ -6,7 +6,7 @@ export function createFasteners(THREE, G) {
   const MM = .001;
 
   // ---------- 螺栓几何（按材质分组返回：头/垫圈/杆/螺纹）----------
-  function boltGeos({d = 8 * MM, len = 20 * MM, af = null, headH = null, flange = true, threaded = true, seg = 6} = {}) {
+  function boltGeos({d = 8 * MM, len = 20 * MM, af = null, headH = null, flange = true, threaded = true, headOnly = false, seg = 6} = {}) {
     const rHexR = (af ?? d * 1.625) / 2 / Math.cos(Math.PI / 6);
     const hh = headH ?? d * .7;
     const headPts = [
@@ -19,8 +19,9 @@ export function createFasteners(THREE, G) {
     ];
     const head = lathe(headPts, seg, {angle: 32});
     const geos = {head, headMat: 'machined'};
-    if (flange) geos.washer = lathe([[d * .56, 0], [d * 1.02, 0], [d * 1.02, d * .16], [d * .56, d * .16], [d * .56, 0]], 14, {angle: 40});
-    geos.shank = lathe([[0, 0], [d / 2, 0], [d / 2, -len + .0004], [0, -len]], 10, {angle: 30});
+    if (flange) geos.washer = lathe([[d * .56, 0], [d * 1.02, 0], [d * 1.02, d * .16], [d * .56, d * .16], [d * .56, 0]], 10, {angle: 40});
+    if (headOnly) return geos;
+    geos.shank = lathe([[0, 0], [d / 2, 0], [d / 2, -len + .0004], [0, -len]], 8, {angle: 30});
     if (threaded && len > d * 1.2) {
       const tl = Math.min(len * .72, len - d * .4);
       const th = thread(d * .99, tl, Math.max(.0008, d * .16), {seg: 22, depth: d * .075});

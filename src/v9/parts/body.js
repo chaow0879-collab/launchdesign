@@ -150,7 +150,8 @@ export function buildBiw(ctx, opts = {}) {
     [2.30, .40, .60], [2.30, .40, -.60], [1.24, .40, .64], [1.24, .40, -.64],
     [-1.30, .38, .58], [-1.30, .38, -.58], [.98, .80, .73], [.98, .80, -.73]
   ];
-  const bolts = mesh(F.boltArray(P, boltPos.map(p => ({p, r: [Math.PI / 2, 0, 0]})), {d: 10 * MM, len: 22 * MM, threaded: false, name: 'body-bolts'}), matHot, 'body-bolts');
+  const bolts = F.boltArray(P, boltPos.map(p => ({p, r: [Math.PI / 2, 0, 0]})), {d: 10 * MM, len: 22 * MM, threaded: false, name: 'body-bolts', color: C.darkSteel});
+  g.add(bolts);
 
   // ---------- 车身铭牌 ----------
   const plate = mesh(new THREE.PlaneGeometry(.10, .04), P.tier('label', {map: L.label({serial: 'BIW-2418-01', spec: 'Steel BIW · 1480MPa hot-stamp', w: 512, h: 256, qr: false})}), 'nameplate');

@@ -64,7 +64,9 @@ export function buildRobotArm(ctx, opts = {}) {
     const a = Math.PI / 4 + i * Math.PI / 2;
     baseBolts.push({p: [Math.cos(a) * .16, .01, Math.sin(a) * .16], r: [0, 0, 0]});
   }
-  const baseBoltMesh = mesh(F.boltArray(P, baseBolts, {d: 12 * .001, len: 26 * .001, threaded: false, name: 'anchor-bolts'}), matJoint, 'anchor-bolts');
+  const baseBoltMesh = F.boltArray(P, baseBolts, {d: 12 * .001, len: 26 * .001, threaded: false, name: 'anchor-bolts', color: 0x8d979f});
+  baseBoltMesh.name = 'anchor-bolts';
+  g.add(baseBoltMesh);
 
   // ---------- J1 回转体 ----------
   const j1 = new THREE.Group(); j1.name = 'J1'; j1.position.y = .13; g.add(j1);
