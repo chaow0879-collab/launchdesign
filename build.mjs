@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {build} from 'esbuild';
+// esbuild 的 JS 包只在回退路径里用，这里延迟加载：服务器上只装二进制也能构建
 const root = path.dirname(fileURLToPath(import.meta.url));
 // 素材目录：默认仍是原环境路径；本机用环境变量 LC_ASSETS 指向整理好的素材包
 const R = process.env.LC_ASSETS || '/home/claude/longchuang-anim/unpacked';
@@ -42,6 +42,7 @@ async function bundleApp() {
     fs.rmSync(tmp, {force: true});
     return {text};
   }
+  const {build} = await import('esbuild');
   const r = await build({entryPoints: [path.join(root, 'src/app.js')], bundle: true, format: 'iife', target: ['chrome100', 'edge100'], minify: !preview, legalComments: 'inline', write: false, loader: {'.json': 'json'}});
   return {text: r.outputFiles[0].text};
 }
