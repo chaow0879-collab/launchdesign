@@ -86,8 +86,10 @@ export function createSystems(K, car) {
     const g2 = new THREE.Group(); g2.name = 'motor'; g2.position.set(x, wr, 0);
     const unit = parts.build('driveUnit');
     g2.add(unit);
-    // 旧件的青色光环（工序里会跟着车轮转）：保留，作为电机端面的能量环
-    const rings = [-1, 1].map(s => { const r = K.ring(.155, COL.cyan, .008); r.position.z = s * .10; g2.add(r); return r; });
+    // 旧件的青色光环（工序里会跟着车轮转）：保留，作为电机端面的能量环。
+    // 用低段数环：旧 K.ring 是 8×64 的环（1024 面/个），4 个就 4k，这里 6×28 足够亮且省 3/4。
+    const ringGeo = new THREE.TorusGeometry(.155, .008, 6, 28);
+    const rings = [-1, 1].map(s => { const r = K.glow(ringGeo, COL.cyan, 2.4, .95); r.position.z = s * .10; g2.add(r); return r; });
     return {
       g: g2, part: unit, housing: unit.housing, inv: unit.inverter, gear: unit.gearbox,
       shafts: unit.shafts, rings, boots: unit.boots, fins: unit.fins
@@ -176,8 +178,7 @@ export function createSystems(K, car) {
       s.position.set(x, .36, z);
       s.scale.setScalar(.937);
       if (wide) s.scale.z = .937 * 1.95;         // 后排：旧件是 1.25m 连体坐垫
-      s.rotation.y = Math.PI;                    // 旧件朝 +x，部件库朝 +x 是“坐垫前沿”，这里统一朝车头
-      g.add(s); return s;
+      g.add(s); return s;                        // 部件库与旧件同向（靠背在 -x、面朝车头 +x），不需要旋转
     };
     const seats = [seat(.08, .37), seat(.08, -.37), seat(-.86, 0, true)];
     // 仪表板：旧件是一整块圆角盒；这里拆成上本体 + 下部软质护板 + 出风口 + 屏幕边框（分材质，不再是单色块）

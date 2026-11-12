@@ -177,7 +177,8 @@ export function buildBatteryPack(ctx, opts = {}) {
 
   // ---------- 12 个模组（整包视角用简化模组，仍保留独立顶盖与铜排）----------
   const modules = [];
-  const modL = .345, modW = .30, modH = .11;
+  // 模组尺寸对齐旧件（旧模组 .33×.12×.6，节点脚本按 z=±.26 放“模组螺栓”标记）
+  const modL = .345, modW = .56, modH = .11;
   for (let i = 0; i < 6; i++) for (let j = 0; j < 2; j++) {
     const mG = buildBatteryModule(ctx, {detail: 'pack', L: modL, H: modH, W: modW, serial: `M${i}${j}`});
     mG.name = `module-${i}-${j}`;
@@ -204,10 +205,10 @@ export function buildBatteryPack(ctx, opts = {}) {
     const fit = mesh(G.lathe([[.009, 0], [.013, 0], [.013, .012], [.016, .012], [.016, .022], [.009, .022], [.009, 0]], 10, {angle: 40}), P.tier('machined', {color: C.alu}), 'coolant-fitting', coolantPlate);
     fit.position.set(-Lx / 2 + .07, .032, s * .60);
     fit.rotation.z = Math.PI / 2;
-    const hose = mesh(G.cable([[-Lx / 2 + .05, .032, s * .60], [-Lx / 2 + .01, .05, s * .66], [Lx / 2 - .01, .06, s * .68], [Lx / 2 + .02, .075, s * .62]], .012, {segs: 16, radial: 5}), P.tier('rubber', {color: 0x171b1e}), 'coolant-hose', coolantPlate);
+    const hose = mesh(G.cable([[-Lx / 2 + .05, .032, s * .58], [-Lx / 2 + .01, .05, s * .60], [Lx / 2 - .01, .06, s * .58], [Lx / 2 + .02, .075, s * .54]], .012, {segs: 16, radial: 5}), P.tier('rubber', {color: 0x171b1e}), 'coolant-hose', coolantPlate);
     hoses.push(hose);
     const cl = F.clamp(P, {r: 12.5 * MM, w: 10 * MM, name: 'hose-clamp'});
-    cl.position.set(-Lx / 2 + .02, .05, s * .655);
+    cl.position.set(-Lx / 2 + .02, .05, s * .59);
     cl.rotation.set(0, 0, Math.PI / 2);
     coolantPlate.add(cl);
   }

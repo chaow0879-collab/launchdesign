@@ -54,7 +54,7 @@ K.add(pack);                                // 沿用现有 kit 的登记/透明
 | 电池包总成 | `batteryPack` | 15462 | 20000 | 77% | 301 | `modules[12]` `tray` `walls[4]` `ribs[7]` `mounts[4]` `coolantPlate` `coolantChannel` `coolantHoses[2]` `busbar` `busbars[2]` `hvTerminals[2]` `hvConnector` `lid` `gasket` `lidBolts` `bms` `relays[3]` | shell · machined · plastic · copper · rubber · pcb · label | engineering-2 / validation-1 |
 | 电驱总成 | `driveUnit` | 7404 | 9000 | 82% | 37 | `motor` `housing` `fins` `bells[2]` `gearbox` `shafts[2]` `boots[2]` `inverter` `phases[3]` `hvPlug` `mounts[2]` `ground` | shell · machined · plastic · copper · rubber · label | engineering-2 / validation-2 |
 | 区域控制器 | `ecu` | 3638 | 4000 | 91% | 54 | `base` `pcb` `chips[4]` `caps[4]` `connectors[2]` `pins[2]`（各 16 针）`lid` `fins` `gasket` `bolts[4]` `leds[3]` `label` | shell · pcb · plastic · machined · rubber · label · emissive | engineering-3 / validation-3 |
-| 白车身骨架 | `biw` | 11130 | 30000 | 37% | 55 | `beams[]`（rocker / A-pillar / roof-rail / B-pillar / C-pillar / front-rail / rear-rail / floor-cross / roof-bow / bumper）`towers[2]` `firewall` `floorPan` `impactBars[2]` `joints[8]` `welds[3]` `bolts` | shell · machined · label | engineering-1 / launch-1 |
+| 白车身骨架 | `biw` | 12738 | 30000 | 42% | 70 | `beams[]`（41 根：rocker / A·B·C 柱 / 顶边梁 / 前后纵梁 / 地板横梁 / 顶盖横梁 / 门洞框 / 铰链柱 / 后轮罩 / 减震塔撑杆 / 防撞梁）`towers[2]` `firewall` `floorPan` `impactBars[2]` `joints[8]` `welds[3]` `bolts` | shell · machined · label | engineering-1 / launch-1 |
 | 悬架角总成 | `suspension` | 7984 | 12000 | 67% | 81 | `spring` `damper` `dustBoot` `bumpStop` `topMount` `arm` `bushings[2]` `ballJoint` `knuckle` `hub` `studs[5]` `disc` `hat` `caliper` `pads[2]` `swayLink` | shell · machined · chrome · rubber · plastic · ceramic · label | engineering-2 / validation-2 |
 | 制动角总成 | `brake` | 4022 | 9000 | 45% | 26 | `hub` `studs[5]` `disc` `vanes` `hat` `caliper` `pistons[4]` `bridge` `line` `shield` `sensor` | machined · shell · chrome · rubber · plastic · label | validation-2 / engineering-4 |
 | 车门板件 | `doorPanel` | 5332 | 9000 | 59% | 41 | `skin` `charLine` `sillSeam` `frontSeam` `frame` `beltReinf` `glass` `frit` `handle` `hinges[2]` `seal` `innerPanel` `ribs[4]` `speakerMesh` `emblem` `vin` | paint · glass · shell · chrome · machined · plastic · rubber · label | cas-2 / classa-2 |
@@ -63,7 +63,7 @@ K.add(pack);                                // 沿用现有 kit 的登记/透明
 | 快速夹钳 | `toggleClamp` | 2066 | 4000 | 52% | 25 | `basePlate` `post` `armGrp` `armPlates[2]` `yoke` `spindle` `screw`（真螺纹）`adjNut` `pad` `handleArm` `link` `pins[3]` `bolts[2]` | machined · rubber · chrome · label | launch-1 |
 | 百分表检具 | `gauge` | 1872 | 3000 | 62% | 16 | `baseBody` `switchKnob` `post` `knuckleA/B` `armRod` `dialBody` `bezel` `face` `ticks` `needle` `glassFace` `stem` `tip` `ringGo` `ringNoGo` | shell · plastic · rubber · machined · chrome · glass · label | launch-1 / validation-2 |
 
-**合计 74,974 三角面 / 800 网格 / 189,752 顶点，占 120,000 预算的 62%**（余 45,026）。逐件全部在各自上限内（座椅 94%、ECU 91% 标注为"临界"，不要再往这两件里加细节）。
+**合计 76,582 三角面 / 731 网格 / 194,576 顶点，占 120,000 预算的 64%**（余 43,418）。逐件全部在各自上限内（座椅 94%、ECU 91% 标注为"临界"，不要再往这两件里加细节）。
 
 尺寸可信（与现有场景同一坐标系，米）：车长 4.747（白车身）、坐垫上表面 0.32 / 座椅总高 0.875、电池包 2.30×1.36×0.14（模组 0.59×0.115×0.35）、ECU 180×120×40mm、电驱 φ305×约 400mm、制动盘 Ø340。
 
@@ -113,7 +113,7 @@ P 部件库 · 三角面验收  (three r180 · v9-parts-1.0.0)
 电池包总成       │ batteryPack     │    15462 │    20000 │     77% │   301 │    23 │ 2.787×0.237×1.778      │ OK
 电驱总成         │ driveUnit       │     7404 │     9000 │     82% │    37 │    20 │ 0.383×0.413×0.668      │ OK
 区域控制器       │ ecu             │     3638 │     4000 │     91% │    54 │    22 │ 0.222×0.057×0.147      │ OK
-白车身骨架       │ biw             │    11130 │    30000 │     37% │    55 │    17 │ 4.747×1.116×1.688      │ OK
+白车身骨架       │ biw             │    12738 │    30000 │     42% │    70 │    17 │ 4.747×1.146×1.688      │ OK
 悬架角总成       │ suspension      │     7984 │    12000 │     67% │    81 │    37 │ 0.62×1.022×0.595       │ OK
 制动角总成       │ brake           │     4022 │     9000 │     45% │    26 │    15 │ 0.34×0.453×0.135       │ OK
 车门板件         │ doorPanel       │     5332 │     9000 │     59% │    41 │    21 │ 1.1×0.706×0.78         │ OK
@@ -122,7 +122,7 @@ P 部件库 · 三角面验收  (three r180 · v9-parts-1.0.0)
 快速夹钳         │ toggleClamp     │     2066 │     4000 │     52% │    25 │    16 │ 0.296×0.158×0.155      │ OK
 百分表检具       │ gauge           │     1872 │     3000 │     62% │    16 │    18 │ 0.273×0.304×0.182      │ OK
 ─────────────────┼─────────────────┼──────────┼──────────┼─────────┼───────┼───────┼────────────────────────┼────────
-合计             │                 │    74974 │   120000 │     62% │   800 │   254 │                        │ OK
+合计             │                 │    76582 │   120000 │     64% │   731 │   254 │                        │ OK
 
 材质档位分布：
   machined(13)  label(13)  shell(11)  rubber(11)  plastic(9)  chrome(5)  copper(3)  pcb(3)  glass(2)  fabric(1)  emissive(1)  ceramic(1)  paint(1)
@@ -136,15 +136,15 @@ P 部件库 · 三角面验收  (three r180 · v9-parts-1.0.0)
   rplateHoles 100×60 t3 孔      体积 1.765e-5  期望 1.776e-5  偏差 0.7%  ✓
   curvedPanel 900×600 t1.6      体积 8.595e-4  期望 8.640e-4  偏差 0.5%  ✓
 
-顶点 189,752 · 网格 800 · 构建耗时 578 ms
-预算：单件见上表，全部部件加总 ≤ 120,000（当前 74,974，余 45,026）
+顶点 194,576 · 网格 731 · 构建耗时 682 ms
+预算：单件见上表，全部部件加总 ≤ 120,000（当前 76,582，余 43,418）
 
 ✓ 全部通过：预算、尺寸、结构、确定性（无随机数）
 ```
 
 bench 除了算三角面，还会检查：**预算**、**尺寸合理性**、**`userData.kind==='part'` / `name` / 子件数量≥3**、**两次构建的三角面/顶点/位置哈希一致（确定性）**、**顶点无 NaN**、**闭合件的绕序与体积**。`--json` 输出机读结果，退出码非 0 表示有项不合格。
 
-> 这套自检在开发中真抓到两个 bug：车门外板的折边有两条反绕序（在背面剔除下会"漏边"）、`lathe()` 的开放轮廓没有端盖（车削件管口是空的，体积也偏小）。两处都已修。
+> 这套自检在开发中真抓到三个几何 bug：车门外板的折边有两条反绕序（背面剔除下会"漏边"）、`lathe()` 的开放轮廓没有端盖（车削件管口是空的，体积也偏小）、`seam()` 的样条穿过直角会向外鼓 25cm（电池包密封胶条直接跑到包体外面）。三处都已修。
 
 ---
 
@@ -175,7 +175,21 @@ npx serve .            # 或任意静态服务器
 
 ---
 
-## 6. 文件
+## 6. 集成到主站（T-106）
+
+`src/engine/systems.js` 已改为调用本库（对外名字一个没动），验收脚本 `integration-check.mjs`：
+
+```bash
+node src/v9/parts/integration-check.mjs   # 退出码 0 = 59 个名字 + 21 项行为断言全过
+```
+
+集成时用的两个钩子：
+
+- **`lod: 'lo'`**：`suspension` / `ecu` 支持。前轴悬架、四个区域控制器用简化版（悬架 −25%，ECU −22%），特写件仍用全细节。
+- **`userData.path`**：`biw` 每根梁都记了路径点，systems 用它放焊点，也方便工序沿梁增长。
+- **可生长几何**：`sweep()` 输出的是非索引几何（按折角拆硬边），而 `K.growTube()` 依赖 `geometry.index`。systems 里对梁补了一条顺序索引（`growable()`），既不丢硬边又能被生长动画驱动。
+
+## 7. 文件
 
 ```
 src/v9/parts/
@@ -186,6 +200,7 @@ src/v9/parts/
   fasteners.js  螺栓 / 螺母 / 垫圈 / 螺柱 / 端子 / 针脚阵列 / 管夹 / 螺栓阵
   seat.js battery.js drive.js ecu.js body.js chassis.js panel.js tooling.js
   bench.mjs     三角面验收（Node 离线，不渲染）
+  integration-check.mjs  主站集成验收（静态构造 systems，断言 26 个节点用到的名字与行为）
   preview.html  可视化预览（真实环境反射 + 三灯）
   package.json  只为 "type": "module"（让 node --check / bench 按 ESM 解析）
   README.md
@@ -193,9 +208,9 @@ src/v9/parts/
 
 ---
 
-## 7. 风险与限制
+## 8. 风险与限制
 
-1. **draw call 偏高（800 网格）**。这是"分材质 + 可动画子件"的代价。当前 26 个节点每个只点亮少量系统，单屏实际网格数远小于 800；若要继续压，可用 `boltArray()` 合并静态紧固件（已支持），或对同材质相邻小件做 `mergeGeos`（会失去单独驱动能力）。
+1. **draw call 偏高（731 网格，接入主站后 1143）**。这是"分材质 + 可动画子件"的代价。当前 26 个节点每个只点亮少量系统，单屏实际网格数远小于全量；若要继续压，可用 `boltArray()` 合并静态紧固件（已支持），或对同材质相邻小件做 `mergeGeos`（会失去单独驱动能力）。电池包的 12 个模组在整包视角已把电芯/端板/铜排/端子按材质合并（316→232 网格）。
 2. **金属档依赖环境反射**。`shell` / `machined` / `chrome` / `copper` 的高光质量取决于 `scene.environment`。现有 `engine/core.js` 已经烘了 PMREM RoomEnvironment（`environmentIntensity .75`），可直接用；若接到没有 environment 的场景，金属会发灰——那时要补环境贴图，而不是调 roughness。
 3. **各向异性（anisotropy）需要切线或 UV 导数**。我用 `anisotropy .42` 做刀纹高光；three r180 在没有 `tangent` 属性时从 UV 导数推导，低模件在极端角度可能有轻微瑕疵，把 `anisotropy` 调 0 即可退化。
 4. **玻璃走 opacity .30 而不是 transmission**。transmission 需要额外渲染目标，且与现有 `kit.op()` 的透明度动画（它会强制 `transparent=true`）冲突；需要真折射时给 `P.tier('glass', {transmission: .9})`。
